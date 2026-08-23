@@ -16,6 +16,8 @@ import (
 type UserRepo interface {
 	GetByEmail(ctx context.Context, email string) (*domain.User, error)
 	GetByID(ctx context.Context, id string) (*domain.User, error)
+	// GetPasswordHash 读取用户密码哈希（登录校验用）。
+	GetPasswordHash(ctx context.Context, id string) (string, error)
 }
 
 // DepartmentRepo 部门。
@@ -53,6 +55,8 @@ type JobRepo interface {
 type CandidateRepo interface {
 	// GetOrCreateByEmail 按邮箱（小写）查或建候选人，返回记录。
 	GetOrCreateByEmail(ctx context.Context, email, name, phone string) (*domain.Candidate, error)
+	// GetByEmail 按邮箱查询候选人；不存在返回 ErrNotFound。
+	GetByEmail(ctx context.Context, email string) (*domain.Candidate, error)
 }
 
 // ApplicationListFilter 候选人列表筛选。
@@ -92,6 +96,8 @@ type ApplicationRepo interface {
 	GetByID(ctx context.Context, id string) (*domain.ApplicationInternal, error)
 	// UpdateStage 更新流转阶段。
 	UpdateStage(ctx context.Context, id, stage string) error
+	// UpdateResumeFileKey 投递创建后写入简历文件 key。
+	UpdateResumeFileKey(ctx context.Context, id, fileKey string) error
 	// UpdateMatch 写回匹配结果（分数/详情/硬性标记/解析结果/向量）。
 	UpdateMatch(ctx context.Context, id string, score float64, detail *domain.MatchDetail, hardPass bool, parsed *domain.ParsedResume, embedding []float32, parseFailed bool) error
 	// SetParseFailed 标记解析失败。

@@ -1,13 +1,25 @@
 import { createBrowserRouter } from 'react-router-dom';
+import { Layout } from './components/Layout';
 import { HomePage } from './pages/HomePage';
+import { JobDetailPage } from './pages/JobDetailPage';
+import { MyApplicationsPage } from './pages/MyApplicationsPage';
+import { NotFoundPage } from './pages/NotFoundPage';
 
 /**
- * 路由骨架：页面实现见 pages/ 目录。
- * 外部端页面清单：
+ * 外部端路由：
  *  - /                    岗位列表（搜索/筛选）
  *  - /jobs/:id            岗位详情 + 投递
  *  - /my/applications     我的投递（邮箱验证码登录）
  */
 export const router = createBrowserRouter([
-  { path: '/', element: <HomePage /> },
+  {
+    path: '/',
+    element: <Layout />,
+    children: [
+      { index: true, element: <HomePage /> },
+      { path: 'jobs/:id', element: <JobDetailPage /> },
+      { path: 'my/applications', element: <MyApplicationsPage /> },
+      { path: '*', element: <NotFoundPage /> },
+    ],
+  },
 ]);

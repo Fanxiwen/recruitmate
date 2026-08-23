@@ -1,7 +1,274 @@
+import { useEffect, useMemo, useState } from 'react';
+import { JOB_TYPE_LABELS } from '@recruitmate/shared-types';
+import type { JobType } from '@recruitmate/shared-types';
+import { JobCard } from '../components/JobCard';
+import {
+  AlertIcon,
+  BriefcaseIcon,
+  BuildingIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  InboxIcon,
+  SearchIcon,
+} from '../components/Icons';
+import { getErrorMessage, useDepartments, useJobs } from '../hooks/useApi';
+import { paginationItems } from '../utils/format';
+
+const PAGE_SIZE = 10;
+
+/** 岗位列表页：Hero 搜索 + 筛选（部门/类型）+ 卡片列表 + 分页 */
 export function HomePage() {
+  const [searchInput, setSearchInput] = useState('');
+  // 防抖后的搜索关键词（300ms）
+  const [q, setQ] = useState('');
+  const [departmentId, setDepartmentId] = useState('');
+  const [jobType, setJobType] = useState<'' | JobType>('');
+  const [page, setPage] = useState(1);
+
+  // 搜索防抖：停止输入 300ms 后再发请求
+  useEffect(() => {
+    const timer = setTimeout(() => setQ(searchInput.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  // 筛选条件变化时回到第一页
+  useEffect(() => {
+    setPage(1);
+  }, [q, departmentId, jobType]);
+
+  useEffect(() => {
+    document.title = 'Recruitmate · 加入我们';
+  }, []);
+
+  // 稳定的查询参数（避免 queryKey 每次渲染都变化）
+  const query = useMemo(
+    () => ({
+      q: q || undefined,
+      departmentId: departmentId || undefined,
+      jobType: jobType || undefined,
+      page,
+      pageSize: PAGE_SIZE,
+    }),
+    [q, departmentId, jobType, page],
+  );
+
+  const jobsQuery = useJobs(query);
+  const deptQuery = useDepartments();
+
+  const total = jobsQuery.data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const hasFilter = Boolean(q || departmentId || jobType);
+
+  function clearFilters() {
+    setSearchInput('');
+    setDepartmentId('');
+    setJobType('');
+    setPage(1);
+  }
+
   return (
-    <div className="p-8 text-gray-700">
-      <h1 className="text-2xl font-bold">外部端骨架（待实现）</h1>
+    <div>
+      {/* ============ Hero：价值主张 + 大搜索框 ============ */}
+      <section className="border-b border-slate-100 bg-gradient-to-b from-indigo-50/80 via-white to-white">
+        <div className="mx-auto max-w-4xl px-4 pb-10 pt-12 text-center sm:pb-14 sm:pt-16">
+          <span className="badge bg-indigo-100 text-indigo-700">热招中 · 期待你的加入</span>
+          <h1 className="mt-4 text-3xl font-bold tracking-tight text-slate-900 sm:text-5xl">
+            与优秀的人，做有价值的事
+          </h1>
+          <p className="mx-auto mt-3 max-w-xl text-base text-slate-500 sm:text-lg">
+            加入 Recruitmate，与一流的伙伴一起，打造影响千万用户的产品
+          </p>
+          <div className="relative mx-auto mt-8 max-w-xl">
+            <SearchIcon className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+            <input
+              className="h-14 w-full rounded-2xl border border-slate-200 bg-white pl-12 pr-4 text-base text-slate-900 shadow-lg shadow-indigo-100/70 outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="搜索岗位、关键词或技能，如「前端」「Go」"
+              aria-label="搜索岗位"
+            />
+          </div>
+          <p className="mt-3 text-xs text-slate-400">支持按关键词、部门、职位类型筛选岗位</p>
+        </div>
+      </section>
+
+      <main className="mx-auto max-w-4xl px-4 pb-16">
+        {/* ============ 筛选栏 ============ */}
+        <div className="card mt-6 flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
+          <label className="flex items-center gap-2 sm:w-52">
+            <BuildingIcon className="h-4 w-4 shrink-0 text-slate-400" />
+            <select
+              className="select"
+              value={departmentId}
+              onChange={(e) => setDepartmentId(e.target.value)}
+              aria-label="按部门筛选"
+            >
+              <option value="">全部部门</option>
+              {(deptQuery.data ?? []).map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="flex items-center gap-2 sm:w-44">
+            <BriefcaseIcon className="h-4 w-4 shrink-0 text-slate-400" />
+            <select
+              className="select"
+              value={jobType}
+              onChange={(e) => setJobType(e.target.value as '' | JobType)}
+              aria-label="按职位类型筛选"
+            >
+              <option value="">全部类型</option>
+              {Object.entries(JOB_TYPE_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <button
+            type="button"
+            className="shrink-0 text-sm font-medium text-indigo-600 transition hover:text-indigo-700 disabled:cursor-not-allowed disabled:text-slate-300 sm:ml-auto"
+            disabled={!hasFilter}
+            onClick={clearFilters}
+          >
+            清空筛选
+          </button>
+        </div>
+
+        {/* ============ 结果标题 ============ */}
+        <div className="mt-8 flex items-baseline justify-between">
+          <h2 className="text-lg font-semibold text-slate-900">
+            {hasFilter ? '筛选结果' : '热招岗位'}
+          </h2>
+          {jobsQuery.data && <span className="text-sm text-slate-400">共 {total} 个岗位</span>}
+        </div>
+
+        {/* ============ 列表 / 加载 / 错误 / 空态 ============ */}
+        {jobsQuery.isPending ? (
+          <JobListSkeleton />
+        ) : jobsQuery.isError ? (
+          <div className="card mt-4 flex flex-col items-center px-6 py-12 text-center">
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-red-400">
+              <AlertIcon className="h-6 w-6" />
+            </span>
+            <p className="mt-3 text-sm text-slate-500">{getErrorMessage(jobsQuery.error)}</p>
+            <button className="btn-secondary mt-4" onClick={() => jobsQuery.refetch()}>
+              重新加载
+            </button>
+          </div>
+        ) : jobsQuery.data.items.length === 0 ? (
+          <div className="card mt-4 flex flex-col items-center px-6 py-14 text-center">
+            <span className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+              <InboxIcon className="h-7 w-7" />
+            </span>
+            <h3 className="mt-4 text-base font-semibold text-slate-700">没有找到符合条件的岗位</h3>
+            <p className="mt-1.5 text-sm text-slate-400">试试更换关键词，或清空筛选条件后再试</p>
+            {hasFilter && (
+              <button className="btn-secondary mt-5" onClick={clearFilters}>
+                清空筛选
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="mt-4 space-y-4">
+            {jobsQuery.data.items.map((job) => (
+              <JobCard key={job.id} job={job} />
+            ))}
+          </div>
+        )}
+
+        {/* ============ 分页 ============ */}
+        {jobsQuery.data && total > 0 && (
+          <Pagination page={page} totalPages={totalPages} onChange={setPage} />
+        )}
+      </main>
+    </div>
+  );
+}
+
+/** 分页器：上一页/下一页 + 页码窗口 + 省略号 */
+function Pagination({
+  page,
+  totalPages,
+  onChange,
+}: {
+  page: number;
+  totalPages: number;
+  onChange: (page: number) => void;
+}) {
+  if (totalPages <= 1) return null;
+  const items = paginationItems(page, totalPages);
+  const base =
+    'inline-flex h-9 min-w-9 items-center justify-center rounded-lg border text-sm font-medium transition';
+  return (
+    <nav className="mt-8 flex items-center justify-center gap-1.5" aria-label="分页">
+      <button
+        type="button"
+        className={`${base} border-slate-200 bg-white text-slate-600 hover:border-indigo-200 hover:text-indigo-600 disabled:cursor-not-allowed disabled:opacity-40`}
+        disabled={page <= 1}
+        onClick={() => onChange(page - 1)}
+        aria-label="上一页"
+      >
+        <ChevronLeftIcon className="h-4 w-4" />
+      </button>
+      {items.map((item, i) =>
+        item === '…' ? (
+          <span key={`ellipsis-${i}`} className="px-1 text-sm text-slate-400">
+            …
+          </span>
+        ) : (
+          <button
+            key={item}
+            type="button"
+            className={`${base} ${
+              item === page
+                ? 'border-indigo-600 bg-indigo-600 text-white shadow-sm'
+                : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-200 hover:text-indigo-600'
+            }`}
+            onClick={() => onChange(item)}
+            aria-current={item === page ? 'page' : undefined}
+          >
+            {item}
+          </button>
+        ),
+      )}
+      <button
+        type="button"
+        className={`${base} border-slate-200 bg-white text-slate-600 hover:border-indigo-200 hover:text-indigo-600 disabled:cursor-not-allowed disabled:opacity-40`}
+        disabled={page >= totalPages}
+        onClick={() => onChange(page + 1)}
+        aria-label="下一页"
+      >
+        <ChevronRightIcon className="h-4 w-4" />
+      </button>
+    </nav>
+  );
+}
+
+/** 列表加载骨架屏 */
+function JobListSkeleton() {
+  return (
+    <div className="mt-4 space-y-4">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <div key={i} className="card p-5 sm:p-6">
+          <div className="flex items-start justify-between gap-3">
+            <div className="h-5 w-1/2 animate-pulse rounded bg-slate-100" />
+            <div className="h-5 w-14 animate-pulse rounded-full bg-slate-100" />
+          </div>
+          <div className="mt-3 h-4 w-2/3 animate-pulse rounded bg-slate-100" />
+          <div className="mt-3 flex gap-2">
+            <div className="h-6 w-14 animate-pulse rounded-lg bg-slate-100" />
+            <div className="h-6 w-14 animate-pulse rounded-lg bg-slate-100" />
+            <div className="h-6 w-14 animate-pulse rounded-lg bg-slate-100" />
+          </div>
+          <div className="mt-4 h-4 w-full animate-pulse rounded bg-slate-100" />
+          <div className="mt-2 h-4 w-4/5 animate-pulse rounded bg-slate-100" />
+        </div>
+      ))}
     </div>
   );
 }

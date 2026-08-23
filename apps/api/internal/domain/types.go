@@ -267,6 +267,76 @@ type Paginated[T any] struct {
 	PageSize int `json:"pageSize"`
 }
 
+// JobListQuery 公开岗位列表查询参数。
+type JobListQuery struct {
+	Q            string  `form:"q"`
+	DepartmentID *string `form:"departmentId"`
+	JobType      string  `form:"jobType"`
+	Page         int     `form:"page"`
+	PageSize     int     `form:"pageSize"`
+}
+
+// ApplicationListQuery 候选人列表查询参数。
+type ApplicationListQuery struct {
+	Stage    string `form:"stage"`
+	HardPass string `form:"hardPass"`
+	Q        string `form:"q"`
+	Sort     string `form:"sort"`
+	Page     int    `form:"page"`
+	PageSize int    `form:"pageSize"`
+}
+
+// UploadedFile 上传的简历文件（已读入内存，≤5MB）。
+type UploadedFile struct {
+	FileName string
+	Content  []byte
+}
+
+// ApplyInput 投递请求（multipart 表单解析结果）。
+type ApplyInput struct {
+	Name       string
+	Email      string
+	Phone      string
+	Source     string
+	ResumeText string
+	ResumeFile *UploadedFile
+}
+
+// ApplyResult 投递成功返回 {id}。
+type ApplyResult struct {
+	ID string `json:"id"`
+}
+
+// ============ API 请求/响应 ============
+
+// LoginRequest 内部端登录请求。
+type LoginRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+// LoginResponse 内部端登录响应。
+type LoginResponse struct {
+	Token string `json:"token"`
+	User  User   `json:"user"`
+}
+
+// SendCodeRequest 发送验证码请求。
+type SendCodeRequest struct {
+	Email string `json:"email"`
+}
+
+// VerifyCodeRequest 校验验证码请求。
+type VerifyCodeRequest struct {
+	Email string `json:"email"`
+	Code  string `json:"code"`
+}
+
+// VerifyCodeResponse 校验验证码响应。
+type VerifyCodeResponse struct {
+	Token string `json:"token"`
+}
+
 // ============ 错误类型 ============
 
 // 错误码（与前端 ApiErrorBody 契约一致）。

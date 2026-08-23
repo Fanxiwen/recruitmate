@@ -88,6 +88,19 @@ func (s *UserStore) GetByID(ctx context.Context, id string) (*domain.User, error
 	return scanUser(s.pool.QueryRow(ctx, userSelect+` WHERE u.id = $1`, id))
 }
 
+// GetPasswordHash 读取用户密码哈希。
+func (s *UserStore) GetPasswordHash(ctx context.Context, id string) (string, error) {
+	var hash string
+	err := s.pool.QueryRow(ctx, `SELECT password_hash FROM users WHERE id = $1`, id).Scan(&hash)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", ErrNotFound
+		}
+		return "", err
+	}
+	return hash, nil
+}
+
 // ============ 部门 ============
 
 // DepartmentStore 部门仓库。
