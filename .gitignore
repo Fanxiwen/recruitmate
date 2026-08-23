@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+coverage/
+
+# Go
+apps/api/bin/
+apps/api/tmp/
+
+# Env & secrets
+.env
+.env.local
+*.env
+!**/.env.example
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Logs
+*.log
+npm-debug.log*
+
+# Generated API client
+packages/api-client/src/generated/

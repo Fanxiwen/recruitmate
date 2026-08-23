@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Go backend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: recruitmate
+          POSTGRES_PASSWORD: recruitmate
+          POSTGRES_DB: recruitmate
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U recruitmate"
+          --health-interval 3s
+          --health-timeout 3s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 3s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27"
+          cache-dependency-path: apps/api/go.sum
+      - name: Download modules
+        run: go mod download
+      - name: Vet
+        run: go vet ./...
+      - name: Build
+        run: go build ./...
+      - name: Test
+        run: go test ./...
+        env:
+          DATABASE_URL: postgres://recruitmate:recruitmate@localhost:5432/recruitmate?sslmode=disable
+          REDIS_ADDR: localhost:6379
+          JWT_SECRET: ci-test-secret
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.23.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Lint
+        run: pnpm -r lint
+      - name: Typecheck
+        run: pnpm -r typecheck
+      - name: Build
+        run: pnpm -r --filter './apps/*' build

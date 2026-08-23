@@ -1,0 +1,22 @@
+{
+  "name": "recruitmate",
+  "private": true,
+  "packageManager": "pnpm@11.23.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  },
+  "scripts": {
+    "dev:web": "pnpm --filter @recruitmate/web dev",
+    "dev:careers": "pnpm --filter @recruitmate/careers dev",
+    "dev:api": "make -C apps/api dev",
+    "build": "pnpm -r --filter './apps/*' build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test"
+  }
+}
