@@ -76,12 +76,12 @@ type ScoredApplication struct {
 
 // ApplicationProcessData worker 处理投递所需的全部数据。
 type ApplicationProcessData struct {
-	ApplicationID    string
-	JobID            string
-	ResumeFileKey    string
-	ResumeText       string
-	ParsedResume     *domain.ParsedResume
-	ResumeEmbedding  []float32
+	ApplicationID   string
+	JobID           string
+	ResumeFileKey   string
+	ResumeText      string
+	ParsedResume    *domain.ParsedResume
+	ResumeEmbedding []float32
 }
 
 // ApplicationRepo 投递。

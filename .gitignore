@@ -29,3 +29,7 @@ npm-debug.log*
 
 # Generated API client
 packages/api-client/src/generated/
+
+# E2E 产物
+e2e/test-results/
+e2e/playwright-report/

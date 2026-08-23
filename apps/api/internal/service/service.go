@@ -51,12 +51,12 @@ func (a *Actor) canAccessJob(j *domain.JobPosting) bool {
 
 // AuthService 登录 / 邮箱验证码。
 type AuthService struct {
-	Users       repo.UserRepo
-	Candidates  repo.CandidateRepo
+	Users        repo.UserRepo
+	Candidates   repo.CandidateRepo
 	Applications repo.ApplicationRepo
-	JWTSecret   string
-	JWTTTL      time.Duration
-	Redis       *redis.Client
+	JWTSecret    string
+	JWTTTL       time.Duration
+	Redis        *redis.Client
 }
 
 // NewAuthService 构造认证服务。

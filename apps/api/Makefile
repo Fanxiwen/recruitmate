@@ -1,7 +1,7 @@
 # recruitmate Go API 开发命令
 # 依赖：Go 1.27+
 
-.PHONY: dev build test vet lint migrate-up migrate-down seed run clean
+.PHONY: dev build test vet lint migrate-up migrate-down seed run clean api-seed api-dev
 
 dev:
 	go run ./cmd/server
@@ -30,6 +30,10 @@ migrate-down:
 
 seed:
 	go run ./cmd/seed
+
+# 兼容 scripts/smoke.sh 的命名
+api-seed: seed
+api-dev: dev
 
 clean:
 	rm -rf bin

@@ -11,11 +11,11 @@ import (
 type Deps struct {
 	JWTSecret string
 
-	PublicJobs         *handler.PublicJobHandler
-	PublicAuth         *handler.PublicAuthHandler
-	InternalAuth       *handler.InternalAuthHandler
-	InternalJobs       *handler.InternalJobHandler
-	InternalApps       *handler.InternalApplicationHandler
+	PublicJobs   *handler.PublicJobHandler
+	PublicAuth   *handler.PublicAuthHandler
+	InternalAuth *handler.InternalAuthHandler
+	InternalJobs *handler.InternalJobHandler
+	InternalApps *handler.InternalApplicationHandler
 }
 
 // New 创建 Gin 引擎并注册全部路由。
@@ -34,6 +34,7 @@ func New(d Deps) *gin.Engine {
 		pub.GET("/jobs", d.PublicJobs.List)
 		pub.GET("/jobs/:id", d.PublicJobs.Get)
 		pub.POST("/jobs/:id/applications", d.PublicJobs.Apply)
+		pub.GET("/departments", d.PublicJobs.ListDepartments)
 
 		pub.POST("/auth/email-code", d.PublicAuth.SendEmailCode)
 		pub.POST("/auth/verify", d.PublicAuth.Verify)

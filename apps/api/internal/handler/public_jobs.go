@@ -9,15 +9,26 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// PublicJobHandler 公开岗位接口（外部求职端，无需认证）。
+// PublicJobHandler 公开接口（外部求职端，无需认证）：岗位 + 部门。
 type PublicJobHandler struct {
-	Jobs     PublicJobLister
-	ApplySvc ApplyService
+	Jobs        PublicJobLister
+	ApplySvc    ApplyService
+	Departments DepartmentLister
 }
 
 // NewPublicJobHandler 构造处理器。
-func NewPublicJobHandler(jobs PublicJobLister, apply ApplyService) *PublicJobHandler {
-	return &PublicJobHandler{Jobs: jobs, ApplySvc: apply}
+func NewPublicJobHandler(jobs PublicJobLister, apply ApplyService, depts DepartmentLister) *PublicJobHandler {
+	return &PublicJobHandler{Jobs: jobs, ApplySvc: apply, Departments: depts}
+}
+
+// ListDepartments GET /api/v1/public/departments —— 部门列表（无需认证，供外部端岗位筛选下拉）。
+func (h *PublicJobHandler) ListDepartments(c *gin.Context) {
+	depts, err := h.Departments.List(c.Request.Context())
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	respondJSON(c, http.StatusOK, depts)
 }
 
 // List GET /api/v1/public/jobs —— 岗位列表（仅 open）。

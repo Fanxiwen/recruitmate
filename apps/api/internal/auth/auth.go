@@ -99,7 +99,7 @@ func SignCandidate(secret string, ttl time.Duration, candidateID string) (string
 func sign(secret string, ttl time.Duration, aud, sub, role string, depID *string) (string, error) {
 	now := time.Now()
 	claims := Claims{
-		Role: role,
+		Role:  role,
 		DepID: depID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   sub,

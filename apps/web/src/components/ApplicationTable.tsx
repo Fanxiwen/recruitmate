@@ -202,7 +202,13 @@ export function ApplicationTable({
         tabIndex={0}
         className="application-table"
         onKeyDown={handleKeyDown}
-        onMouseDown={() => wrapRef.current?.focus()}
+        onMouseDown={(e) => {
+          // 为键盘快捷键获取焦点，但禁止浏览器 focus 滚动：
+          // 否则 sticky 列随滚动重定位，mousedown/mouseup 之间元素位移，
+          // 导致「详情」等按钮第一次点击失效。
+          e.preventDefault();
+          wrapRef.current?.focus({ preventScroll: true });
+        }}
       >
         <Table<ApplicationInternal>
           rowKey="id"

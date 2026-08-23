@@ -256,7 +256,7 @@ export function ApplyModal({ job, open, onClose }: ApplyModalProps) {
 
               {/* 简历：文件或文本，至少一种 */}
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                <label htmlFor="apply-resume-text" className="mb-1.5 block text-sm font-medium text-slate-700">
                   简历 <span className="text-red-500">*</span>
                   <span className="ml-1 font-normal text-slate-400">（上传文件或粘贴内容，至少一种）</span>
                 </label>
@@ -302,6 +302,7 @@ export function ApplyModal({ job, open, onClose }: ApplyModalProps) {
                 </div>
 
                 <textarea
+                  id="apply-resume-text"
                   className={`input min-h-[110px] resize-y ${fieldErrors.resume ? 'border-red-400' : ''}`}
                   value={resumeText}
                   onChange={(e) => setResumeText(e.target.value)}

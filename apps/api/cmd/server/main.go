@@ -131,7 +131,7 @@ func run() error {
 
 	r := router.New(router.Deps{
 		JWTSecret:    cfg.JWTSecret,
-		PublicJobs:   handler.NewPublicJobHandler(jobSvc, applySvc),
+		PublicJobs:   handler.NewPublicJobHandler(jobSvc, applySvc, deptSvc),
 		PublicAuth:   handler.NewPublicAuthHandler(authSvc),
 		InternalAuth: handler.NewInternalAuthHandler(authSvc, deptSvc),
 		InternalJobs: handler.NewInternalJobHandler(jobSvc),

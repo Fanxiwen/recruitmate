@@ -34,6 +34,18 @@ func (s *stubApplyService) Apply(ctx context.Context, jobID string, in *domain.A
 	return s.applyFn(ctx, jobID, in)
 }
 
+// stubDepartmentLister 测试替身：实现 DepartmentLister 接口。
+type stubDepartmentLister struct {
+	listFn func(ctx context.Context) ([]domain.Department, error)
+}
+
+func (s *stubDepartmentLister) List(ctx context.Context) ([]domain.Department, error) {
+	if s.listFn == nil {
+		return []domain.Department{}, nil
+	}
+	return s.listFn(ctx)
+}
+
 func init() { gin.SetMode(gin.TestMode) }
 
 func sampleJob(id, title string) *domain.JobPosting {
@@ -72,7 +84,7 @@ func TestPublicJobList(t *testing.T) {
 	}
 	h := NewPublicJobHandler(stub, &stubApplyService{applyFn: func(ctx context.Context, jobID string, in *domain.ApplyInput) (*domain.ApplyResult, error) {
 		return nil, nil
-	}})
+	}}, &stubDepartmentLister{})
 	r := gin.New()
 	r.GET("/public/jobs", h.List)
 
@@ -107,7 +119,7 @@ func TestPublicJobGet(t *testing.T) {
 		}
 		h := NewPublicJobHandler(stub, &stubApplyService{applyFn: func(ctx context.Context, jobID string, in *domain.ApplyInput) (*domain.ApplyResult, error) {
 			return nil, nil
-		}})
+		}}, &stubDepartmentLister{})
 		r := gin.New()
 		r.GET("/public/jobs/:id", h.Get)
 
@@ -135,7 +147,7 @@ func TestPublicJobGet(t *testing.T) {
 		}
 		h := NewPublicJobHandler(stub, &stubApplyService{applyFn: func(ctx context.Context, jobID string, in *domain.ApplyInput) (*domain.ApplyResult, error) {
 			return nil, nil
-		}})
+		}}, &stubDepartmentLister{})
 		r := gin.New()
 		r.GET("/public/jobs/:id", h.Get)
 
@@ -171,7 +183,7 @@ func TestPublicJobApply(t *testing.T) {
 			return &domain.ApplyResult{ID: "app-1"}, nil
 		},
 	}
-	h := NewPublicJobHandler(&stubPublicJobLister{}, apply)
+	h := NewPublicJobHandler(&stubPublicJobLister{}, apply, &stubDepartmentLister{})
 	r := gin.New()
 	r.POST("/public/jobs/:id/applications", h.Apply)
 
@@ -197,5 +209,35 @@ func TestPublicJobApply(t *testing.T) {
 	}
 	if resp.ID != "app-1" {
 		t.Errorf("id = %q, want app-1", resp.ID)
+	}
+}
+
+// TestPublicDepartments 公开部门列表接口。
+func TestPublicDepartments(t *testing.T) {
+	depts := &stubDepartmentLister{
+		listFn: func(ctx context.Context) ([]domain.Department, error) {
+			return []domain.Department{
+				{ID: "dept-1", Name: "技术部"},
+				{ID: "dept-2", Name: "产品部"},
+			}, nil
+		},
+	}
+	h := NewPublicJobHandler(&stubPublicJobLister{}, &stubApplyService{}, depts)
+	r := gin.New()
+	r.GET("/public/departments", h.ListDepartments)
+
+	req := httptest.NewRequest(http.MethodGet, "/public/departments", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	var body []domain.Department
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(body) != 2 || body[0].Name != "技术部" {
+		t.Fatalf("departments = %+v", body)
 	}
 }

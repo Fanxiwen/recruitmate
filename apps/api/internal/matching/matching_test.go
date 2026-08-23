@@ -59,9 +59,9 @@ func TestEducationRank(t *testing.T) {
 // TestCandidateEducationRank 候选人学历解析（按 level 字符串）。
 func TestCandidateEducationRank(t *testing.T) {
 	tests := []struct {
-		name  string
+		name   string
 		parsed domain.ParsedResume
-		want  int
+		want   int
 	}{
 		{"本科", domain.ParsedResume{Education: []domain.EducationItem{{Level: "本科"}}}, 2},
 		{"硕士", domain.ParsedResume{Education: []domain.EducationItem{{Level: "硕士"}}}, 3},
@@ -84,9 +84,9 @@ func TestCandidateEducationRank(t *testing.T) {
 // TestYearsFactor 年限达标系数。
 func TestYearsFactor(t *testing.T) {
 	tests := []struct {
-		years   float64
+		years    float64
 		minYears int
-		want    float64
+		want     float64
 	}{
 		{5, 3, 1},
 		{3, 3, 1},

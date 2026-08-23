@@ -84,10 +84,10 @@ func New(ctx context.Context, cfg Config) (Client, error) {
 	c := &client{cfg: cfg}
 	if cfg.DeepSeekAPIKey != "" {
 		chatModel, err := openai.NewChatModel(ctx, &openai.ChatModelConfig{
-			APIKey:    cfg.DeepSeekAPIKey,
-			BaseURL:   cfg.DeepSeekBaseURL,
-			Model:     cfg.DeepSeekModel,
-			Timeout:   60 * time.Second,
+			APIKey:  cfg.DeepSeekAPIKey,
+			BaseURL: cfg.DeepSeekBaseURL,
+			Model:   cfg.DeepSeekModel,
+			Timeout: 60 * time.Second,
 			ResponseFormat: &openai.ChatCompletionResponseFormat{
 				Type: openai.ChatCompletionResponseFormatTypeJSONObject,
 			},

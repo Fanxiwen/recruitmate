@@ -84,13 +84,25 @@ FROM applications WHERE candidate_id = $1 AND job_id = $2`, candidateID, jobID).
 	return &a, nil
 }
 
-// 候选人列表查询用字段。
+// 候选人列表查询用字段（不含 resume_text，保持列表响应轻量）。
 const appInternalSelect = `
 SELECT a.id, a.job_id, j.title AS job_title,
        a.candidate_id, c.name AS candidate_name, c.email, c.phone,
        a.stage, a.source, a.submitted_at, a.match_score, a.hard_pass, a.parse_failed,
        a.parsed_resume, a.match_detail,
        (a.resume_file_key IS NOT NULL AND a.resume_file_key <> '') AS has_resume_file
+FROM applications a
+JOIN candidates c ON c.id = a.candidate_id
+JOIN job_postings j ON j.id = a.job_id`
+
+// 候选人详情查询字段（含 resume_text，供详情接口快速预览简历原文）。
+const appInternalDetailSelect = `
+SELECT a.id, a.job_id, j.title AS job_title,
+       a.candidate_id, c.name AS candidate_name, c.email, c.phone,
+       a.stage, a.source, a.submitted_at, a.match_score, a.hard_pass, a.parse_failed,
+       a.parsed_resume, a.match_detail,
+       (a.resume_file_key IS NOT NULL AND a.resume_file_key <> '') AS has_resume_file,
+       COALESCE(a.resume_text, '')
 FROM applications a
 JOIN candidates c ON c.id = a.candidate_id
 JOIN job_postings j ON j.id = a.job_id`
@@ -109,6 +121,31 @@ func scanApplicationInternal(row pgx.Row) (*domain.ApplicationInternal, error) {
 		}
 		return nil, err
 	}
+	fillApplicationJSON(&a, parsed, detail)
+	return &a, nil
+}
+
+// scanApplicationInternalDetail 详情行扫描（额外含 resume_text）。
+func scanApplicationInternalDetail(row pgx.Row) (*domain.ApplicationInternal, error) {
+	var a domain.ApplicationInternal
+	var parsed []byte
+	var detail []byte
+	err := row.Scan(&a.ID, &a.JobID, &a.JobTitle,
+		&a.CandidateID, &a.CandidateName, &a.Email, &a.Phone,
+		&a.Stage, &a.Source, &a.SubmittedAt, &a.MatchScore, &a.HardPass, &a.ParseFailed,
+		&parsed, &detail, &a.HasResumeFile, &a.ResumeText)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	fillApplicationJSON(&a, parsed, detail)
+	return &a, nil
+}
+
+// fillApplicationJSON 解析 parsed_resume / match_detail 两列 JSON。
+func fillApplicationJSON(a *domain.ApplicationInternal, parsed, detail []byte) {
 	if len(parsed) > 0 && string(parsed) != "null" {
 		var p domain.ParsedResume
 		if err := json.Unmarshal(parsed, &p); err == nil {
@@ -121,7 +158,6 @@ func scanApplicationInternal(row pgx.Row) (*domain.ApplicationInternal, error) {
 			a.MatchDetail = &m
 		}
 	}
-	return &a, nil
 }
 
 // ListByJob 岗位候选人分页列表。
@@ -165,9 +201,9 @@ ORDER BY
 	return out, total, rows.Err()
 }
 
-// GetByID 投递详情。
+// GetByID 投递详情（含 resume_text）。
 func (s *ApplicationStore) GetByID(ctx context.Context, id string) (*domain.ApplicationInternal, error) {
-	return scanApplicationInternal(s.pool.QueryRow(ctx, appInternalSelect+` WHERE a.id = $1`, id))
+	return scanApplicationInternalDetail(s.pool.QueryRow(ctx, appInternalDetailSelect+` WHERE a.id = $1`, id))
 }
 
 // UpdateStage 更新流转阶段。

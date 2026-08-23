@@ -191,14 +191,14 @@ type WorkExperienceItem struct {
 
 // ParsedResume AI 简历结构化解析结果。
 type ParsedResume struct {
-	Name              string                `json:"name"`
-	Email             string                `json:"email"`
-	Phone             string                `json:"phone"`
-	YearsOfExperience float64               `json:"yearsOfExperience"`
-	Education         []EducationItem       `json:"education"`
-	Skills            []string              `json:"skills"`
-	WorkExperience    []WorkExperienceItem  `json:"workExperience"`
-	Summary           string                `json:"summary"`
+	Name              string               `json:"name"`
+	Email             string               `json:"email"`
+	Phone             string               `json:"phone"`
+	YearsOfExperience float64              `json:"yearsOfExperience"`
+	Education         []EducationItem      `json:"education"`
+	Skills            []string             `json:"skills"`
+	WorkExperience    []WorkExperienceItem `json:"workExperience"`
+	Summary           string               `json:"summary"`
 }
 
 // HardCheck 硬性条件逐项检查结果。
@@ -226,22 +226,24 @@ type MatchDetail struct {
 
 // ApplicationInternal 内部端候选人投递视图。
 type ApplicationInternal struct {
-	ID            string           `json:"id"`
-	JobID         string           `json:"jobId"`
-	JobTitle      string           `json:"jobTitle"`
-	CandidateID   string           `json:"candidateId"`
-	CandidateName string           `json:"candidateName"`
-	Email         string           `json:"email"`
-	Phone         string           `json:"phone"`
-	Stage         string           `json:"stage"`
-	Source        string           `json:"source"`
-	SubmittedAt   time.Time        `json:"submittedAt"`
-	MatchScore    *float64         `json:"matchScore"`
-	HardPass      bool             `json:"hardPass"`
-	ParseFailed   bool             `json:"parseFailed"`
-	ParsedResume  *ParsedResume    `json:"parsedResume"`
-	MatchDetail   *MatchDetail     `json:"matchDetail"`
-	HasResumeFile bool             `json:"hasResumeFile"`
+	ID            string        `json:"id"`
+	JobID         string        `json:"jobId"`
+	JobTitle      string        `json:"jobTitle"`
+	CandidateID   string        `json:"candidateId"`
+	CandidateName string        `json:"candidateName"`
+	Email         string        `json:"email"`
+	Phone         string        `json:"phone"`
+	Stage         string        `json:"stage"`
+	Source        string        `json:"source"`
+	SubmittedAt   time.Time     `json:"submittedAt"`
+	MatchScore    *float64      `json:"matchScore"`
+	HardPass      bool          `json:"hardPass"`
+	ParseFailed   bool          `json:"parseFailed"`
+	ParsedResume  *ParsedResume `json:"parsedResume"`
+	MatchDetail   *MatchDetail  `json:"matchDetail"`
+	HasResumeFile bool          `json:"hasResumeFile"`
+	// ResumeText 简历提取文本（内部端详情接口返回，便于快速预览原文；无则省略）。
+	ResumeText string `json:"resumeText,omitempty"`
 }
 
 // ApplicationPublic 求职者视角的投递状态视图。
@@ -255,10 +257,10 @@ type ApplicationPublic struct {
 
 // JobStats 岗位投递漏斗统计。
 type JobStats struct {
-	Total         int             `json:"total"`
-	ByStage       map[string]int  `json:"byStage"`
-	AvgScore      *float64        `json:"avgScore"`
-	HardPassCount int             `json:"hardPassCount"`
+	Total         int            `json:"total"`
+	ByStage       map[string]int `json:"byStage"`
+	AvgScore      *float64       `json:"avgScore"`
+	HardPassCount int            `json:"hardPassCount"`
 }
 
 // Paginated 分页响应。

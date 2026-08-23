@@ -15,7 +15,7 @@ import (
 
 // Config 服务全部配置。
 type Config struct {
-	AppEnv  string
+	AppEnv   string
 	HTTPAddr string
 
 	DatabaseURL string
@@ -30,18 +30,18 @@ type Config struct {
 	S3Bucket    string
 	S3UseSSL    bool
 
-	DeepSeekAPIKey    string
-	DeepSeekBaseURL   string
-	DeepSeekModel     string
-	SiliconFlowAPIKey string
+	DeepSeekAPIKey     string
+	DeepSeekBaseURL    string
+	DeepSeekModel      string
+	SiliconFlowAPIKey  string
 	SiliconFlowBaseURL string
-	EmbeddingModel    string
-	EmbeddingDim      int
+	EmbeddingModel     string
+	EmbeddingDim       int
 
-	AITopN    int
-	AILLMW    float64
+	AITopN      int
+	AILLMW      float64
 	AISemanticW float64
-	AIRuleW   float64
+	AIRuleW     float64
 
 	AsyncWorkers int
 	CORSOrigins  []string
@@ -75,10 +75,10 @@ func Load() (*Config, error) {
 		EmbeddingModel:     getenv("EMBEDDING_MODEL", "BAAI/bge-m3"),
 		EmbeddingDim:       getenvInt("EMBEDDING_DIM", 1024),
 
-		AITopN:       getenvInt("AI_TOPN", 50),
-		AILLMW:       getenvFloat("AI_LLM_W", 0.45),
-		AISemanticW:  getenvFloat("AI_SEMANTIC_W", 0.30),
-		AIRuleW:      getenvFloat("AI_RULE_W", 0.25),
+		AITopN:      getenvInt("AI_TOPN", 50),
+		AILLMW:      getenvFloat("AI_LLM_W", 0.45),
+		AISemanticW: getenvFloat("AI_SEMANTIC_W", 0.30),
+		AIRuleW:     getenvFloat("AI_RULE_W", 0.25),
 
 		AsyncWorkers: getenvInt("ASYNC_WORKERS", 4),
 		CORSOrigins:  getenvList("CORS_ORIGINS", "http://localhost:5173,http://localhost:5174"),
