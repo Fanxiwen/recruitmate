@@ -159,6 +159,17 @@ type Candidate struct {
 	Name  string
 }
 
+// Application 投递记录（创建与 worker 写入使用）。
+type Application struct {
+	ID            string
+	CandidateID   string
+	JobID         string
+	Stage         string
+	Source        string
+	ResumeFileKey string
+	ResumeText    string
+}
+
 // EducationItem AI 简历解析：教育经历条目。
 type EducationItem struct {
 	Level   string `json:"level"`

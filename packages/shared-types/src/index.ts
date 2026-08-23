@@ -104,6 +104,8 @@ export interface JobPosting {
   closedAt?: ISODate;
   createdAt: ISODate;
   updatedAt: ISODate;
+  /** 投递总数（内部端列表接口返回） */
+  applicationCount?: number;
 }
 
 export interface JobPostingInput {
@@ -190,6 +192,8 @@ export interface ApplicationInternal {
   parsedResume: ParsedResume | null;
   matchDetail: MatchDetail | null;
   hasResumeFile: boolean;
+  /** 简历提取文本（内部端详情接口返回，便于快速预览原文） */
+  resumeText?: string;
 }
 
 export interface ApplicationPublic {
