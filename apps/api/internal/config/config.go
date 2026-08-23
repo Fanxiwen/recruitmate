@@ -166,7 +166,14 @@ func loadDotEnv(path string) {
 		}
 		key = strings.TrimSpace(key)
 		val = strings.TrimSpace(val)
+		// 去除行内注释（"KEY=value # 注释"）
+		if i := strings.Index(val, " #"); i >= 0 {
+			val = strings.TrimSpace(val[:i])
+		}
 		val = strings.Trim(val, `"'`)
+		if key == "" {
+			continue
+		}
 		if os.Getenv(key) == "" {
 			_ = os.Setenv(key, val)
 		}

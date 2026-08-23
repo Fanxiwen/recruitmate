@@ -169,6 +169,18 @@ func (s *AuthService) VerifyEmailCode(ctx context.Context, email, code string) (
 	return token, nil
 }
 
+// Me 获取当前登录用户信息。
+func (s *AuthService) Me(ctx context.Context, userID string) (*domain.User, error) {
+	user, err := s.Users.GetByID(ctx, userID)
+	if err != nil {
+		if err == repo.ErrNotFound {
+			return nil, domain.NewError(401, domain.CodeUnauthorized, "用户不存在")
+		}
+		return nil, domain.WrapError(500, domain.CodeInternal, "查询用户失败", err)
+	}
+	return user, nil
+}
+
 // MyApplications 候选人查看本人投递列表。
 func (s *AuthService) MyApplications(ctx context.Context, candidateID string) ([]domain.ApplicationPublic, error) {
 	apps, err := s.Applications.ListPublicByCandidate(ctx, candidateID)

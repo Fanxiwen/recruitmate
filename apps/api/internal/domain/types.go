@@ -136,6 +136,8 @@ type JobPosting struct {
 	ClosedAt       *time.Time      `json:"closedAt,omitempty"`
 	CreatedAt      time.Time       `json:"createdAt"`
 	UpdatedAt      time.Time       `json:"updatedAt"`
+	// ApplicationCount 投递总数（内部端列表接口返回）。
+	ApplicationCount *int `json:"applicationCount,omitempty"`
 }
 
 // JobPostingInput 创建/更新岗位的请求体。
@@ -335,6 +337,13 @@ type VerifyCodeRequest struct {
 // VerifyCodeResponse 校验验证码响应。
 type VerifyCodeResponse struct {
 	Token string `json:"token"`
+}
+
+// BatchActionRequest 批量操作请求。
+type BatchActionRequest struct {
+	IDs    []string `json:"ids"`
+	Action string   `json:"action"`
+	Stage  string   `json:"stage"`
 }
 
 // ============ 错误类型 ============

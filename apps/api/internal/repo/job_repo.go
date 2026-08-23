@@ -23,6 +23,18 @@ FROM job_postings j
 LEFT JOIN departments d ON d.id = j.department_id
 LEFT JOIN users u ON u.id = j.owner_id`
 
+// jobSelectWithCount 内部端列表：附带投递总数。
+const jobSelectWithCount = `
+SELECT j.id, j.title, j.department_id, d.name AS department_name,
+       j.owner_id, u.name AS owner_name,
+       j.status, j.headcount, j.salary_min, j.salary_max, j.location, j.job_type,
+       j.description, j.requirements,
+       j.published_at, j.closed_at, j.created_at, j.updated_at,
+       (SELECT COUNT(*) FROM applications a WHERE a.job_id = j.id) AS application_count
+FROM job_postings j
+LEFT JOIN departments d ON d.id = j.department_id
+LEFT JOIN users u ON u.id = j.owner_id`
+
 func scanJob(row pgx.Row) (*domain.JobPosting, error) {
 	var j domain.JobPosting
 	var requirements []byte
@@ -42,6 +54,31 @@ func scanJob(row pgx.Row) (*domain.JobPosting, error) {
 			return nil, fmt.Errorf("repo: unmarshal requirements: %w", err)
 		}
 	}
+	return &j, nil
+}
+
+// scanJobWithCount 同 scanJob，额外扫描投递总数。
+func scanJobWithCount(row pgx.Row) (*domain.JobPosting, error) {
+	var j domain.JobPosting
+	var requirements []byte
+	var count *int
+	err := row.Scan(&j.ID, &j.Title, &j.DepartmentID, &j.DepartmentName,
+		&j.OwnerID, &j.OwnerName,
+		&j.Status, &j.Headcount, &j.SalaryMin, &j.SalaryMax, &j.Location, &j.JobType,
+		&j.Description, &requirements,
+		&j.PublishedAt, &j.ClosedAt, &j.CreatedAt, &j.UpdatedAt, &count)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	if len(requirements) > 0 {
+		if err := json.Unmarshal(requirements, &j.Requirements); err != nil {
+			return nil, fmt.Errorf("repo: unmarshal requirements: %w", err)
+		}
+	}
+	j.ApplicationCount = count
 	return &j, nil
 }
 
@@ -140,7 +177,7 @@ func (s *JobStore) ListInternal(ctx context.Context, status string, deptID *stri
 	}
 
 	args = append(args, pageSize, (page-1)*pageSize)
-	rows, err := s.pool.Query(ctx, jobSelect+where+` ORDER BY j.created_at DESC LIMIT $3 OFFSET $4`, args...)
+	rows, err := s.pool.Query(ctx, jobSelectWithCount+where+` ORDER BY j.created_at DESC LIMIT $3 OFFSET $4`, args...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -148,7 +185,7 @@ func (s *JobStore) ListInternal(ctx context.Context, status string, deptID *stri
 
 	var out []domain.JobPosting
 	for rows.Next() {
-		j, err := scanJob(rows)
+		j, err := scanJobWithCount(rows)
 		if err != nil {
 			return nil, 0, err
 		}

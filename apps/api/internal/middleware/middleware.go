@@ -70,6 +70,13 @@ func bearerToken(c *gin.Context) (string, bool) {
 	return strings.TrimSpace(strings.TrimPrefix(h, "Bearer ")), true
 }
 
+// setContextValue 将值写入请求上下文（同时兼容 gin.Context.Set 与 context.Context）。
+func setContextValue(c *gin.Context, key ContextKey, val any) {
+	c.Set(string(key), val)
+	ctx := context.WithValue(c.Request.Context(), key, val)
+	c.Request = c.Request.WithContext(ctx)
+}
+
 // RequireInternal 内部端鉴权：校验 JWT（aud=internal），注入 Claims。
 func RequireInternal(secret string) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -87,7 +94,7 @@ func RequireInternal(secret string) gin.HandlerFunc {
 			writeAuthError(c, http.StatusUnauthorized, domain.CodeUnauthorized, "令牌缺少用户标识")
 			return
 		}
-		c.Set(string(CtxClaims), claims)
+		setContextValue(c, CtxClaims, claims)
 		c.Next()
 	}
 }
@@ -109,7 +116,7 @@ func RequireCandidate(secret string) gin.HandlerFunc {
 			writeAuthError(c, http.StatusUnauthorized, domain.CodeUnauthorized, "令牌缺少候选人标识")
 			return
 		}
-		c.Set(string(CtxCandidateID), claims.Subject)
+		setContextValue(c, CtxCandidateID, claims.Subject)
 		c.Next()
 	}
 }

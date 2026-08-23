@@ -31,6 +31,20 @@ type Client interface {
 	Embed(ctx context.Context, text string) ([]float32, error)
 }
 
+// StatusProvider 能力状态查询（供匹配层判断降级策略）。
+type StatusProvider interface {
+	ChatEnabled() bool
+	EmbedEnabled() bool
+}
+
+// Capabilities 查询客户端各项能力是否启用。
+func Capabilities(c Client) (chat, embed bool) {
+	if sp, ok := c.(StatusProvider); ok {
+		return sp.ChatEnabled(), sp.EmbedEnabled()
+	}
+	return true, true
+}
+
 // Config AI 客户端配置。
 type Config struct {
 	DeepSeekAPIKey     string
@@ -116,13 +130,9 @@ func (c *client) ChatJSON(ctx context.Context, system, user string, out any) err
 			"model", c.cfg.DeepSeekModel, "elapsed_ms", elapsed.Milliseconds(), "error", err)
 		return fmt.Errorf("ai chat: generate: %w", err)
 	}
-	usage := ""
-	if resp != nil && resp.Usage != nil {
-		usage = fmt.Sprintf("prompt=%d completion=%d total=%d",
-			resp.Usage.PromptTokens, resp.Usage.CompletionTokens, resp.Usage.TotalTokens)
-	}
-	slog.Info("ai: chat complete",
-		"model", c.cfg.DeepSeekModel, "elapsed_ms", elapsed.Milliseconds(), "usage", usage)
+	// 注：Eino openai 组件的 schema.Message 不暴露 token 用量，仅记录耗时；
+	// 若需用量统计，可在生产环境通过 LLM 网关/服务商后台获取。
+	slog.Info("ai: chat complete", "model", c.cfg.DeepSeekModel, "elapsed_ms", elapsed.Milliseconds())
 
 	if resp == nil || strings.TrimSpace(resp.Content) == "" {
 		return errors.New("ai chat: empty response")

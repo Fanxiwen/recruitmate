@@ -1,0 +1,68 @@
+package handler
+
+import (
+	"net/http"
+
+	"github.com/Fanxiwen/recruitmate/apps/api/internal/domain"
+	"github.com/gin-gonic/gin"
+)
+
+// InternalApplicationHandler 内部端候选人（投递）接口。
+type InternalApplicationHandler struct {
+	Jobs InternalJobService
+}
+
+// NewInternalApplicationHandler 构造处理器。
+func NewInternalApplicationHandler(jobs InternalJobService) *InternalApplicationHandler {
+	return &InternalApplicationHandler{Jobs: jobs}
+}
+
+// Get GET /api/v1/internal/applications/:id —— 投递详情。
+func (h *InternalApplicationHandler) Get(c *gin.Context) {
+	app, err := h.Jobs.GetApplication(c.Request.Context(), actorFromContext(c), c.Param("id"))
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	respondJSON(c, http.StatusOK, app)
+}
+
+// SetStage PATCH /api/v1/internal/applications/:id/stage —— 流转阶段。
+func (h *InternalApplicationHandler) SetStage(c *gin.Context) {
+	var req struct {
+		Stage string `json:"stage"`
+	}
+	if !bindJSON(c, &req) {
+		return
+	}
+	app, err := h.Jobs.SetStage(c.Request.Context(), actorFromContext(c), c.Param("id"), req.Stage)
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	respondJSON(c, http.StatusOK, app)
+}
+
+// Batch POST /api/v1/internal/applications/batch —— 批量操作。
+func (h *InternalApplicationHandler) Batch(c *gin.Context) {
+	var req domain.BatchActionRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	updated, err := h.Jobs.Batch(c.Request.Context(), actorFromContext(c), req.IDs, req.Action, req.Stage)
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	respondJSON(c, http.StatusOK, gin.H{"updated": updated})
+}
+
+// ResumeURL GET /api/v1/internal/applications/:id/resume-url —— 简历预签名下载地址。
+func (h *InternalApplicationHandler) ResumeURL(c *gin.Context) {
+	url, err := h.Jobs.ResumeURL(c.Request.Context(), actorFromContext(c), c.Param("id"))
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	respondJSON(c, http.StatusOK, gin.H{"url": url})
+}

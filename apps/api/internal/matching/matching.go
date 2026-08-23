@@ -292,6 +292,40 @@ func CompositeRule(ruleScore int, semanticScore *int) int {
 	return clampScore(int(math.Round(0.6*float64(ruleScore) + 0.4*float64(*semanticScore))))
 }
 
+// CompositeAIW 综合分（AI 评委，权重可配置）：
+//   - semantic 可用：round((llmW*llm + semW*sem + ruleW*rule) / (llmW+semW+ruleW))
+//   - semantic 缺失：按 llm/rule 权重重新归一
+//
+// 默认权重 0.45/0.30/0.25 时与 CompositeAI 一致（总和为 1）。
+func CompositeAIW(llmScore int, semanticScore *int, ruleScore int, llmW, semW, ruleW float64) int {
+	if semanticScore == nil {
+		total := llmW + ruleW
+		if total <= 0 {
+			total = 1
+		}
+		return clampScore(int(math.Round(llmW/total*float64(llmScore) + ruleW/total*float64(ruleScore))))
+	}
+	total := llmW + semW + ruleW
+	if total <= 0 {
+		total = 1
+	}
+	return clampScore(int(math.Round((llmW*float64(llmScore) + semW*float64(*semanticScore) + ruleW*float64(ruleScore)) / total)))
+}
+
+// CompositeRuleW 综合分（无 AI 评委，权重可配置）：
+//   - semantic 可用：round((ruleW*rule + semW*sem) / (ruleW+semW))
+//   - semantic 缺失：rule
+func CompositeRuleW(ruleScore int, semanticScore *int, ruleW, semW float64) int {
+	if semanticScore == nil {
+		return clampScore(ruleScore)
+	}
+	total := ruleW + semW
+	if total <= 0 {
+		total = 1
+	}
+	return clampScore(int(math.Round((ruleW*float64(ruleScore) + semW*float64(*semanticScore)) / total)))
+}
+
 func clampScore(s int) int {
 	if s > 100 {
 		return 100

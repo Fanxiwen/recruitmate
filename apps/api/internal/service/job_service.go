@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Fanxiwen/recruitmate/apps/api/internal/domain"
+	"github.com/Fanxiwen/recruitmate/apps/api/internal/file"
 	"github.com/Fanxiwen/recruitmate/apps/api/internal/repo"
 	"github.com/google/uuid"
 )
@@ -22,15 +23,16 @@ type TaskQueue interface {
 
 // JobService 岗位与候选人业务逻辑（含 RBAC 与部门隔离）。
 type JobService struct {
-	Jobs   repo.JobRepo
-	Apps   repo.ApplicationRepo
-	Audit  repo.AuditRepo
-	Queue  TaskQueue
+	Jobs    repo.JobRepo
+	Apps    repo.ApplicationRepo
+	Audit   repo.AuditRepo
+	Queue   TaskQueue
+	Storage file.Storage
 }
 
 // NewJobService 构造岗位服务。
-func NewJobService(jobs repo.JobRepo, apps repo.ApplicationRepo, audit repo.AuditRepo, queue TaskQueue) *JobService {
-	return &JobService{Jobs: jobs, Apps: apps, Audit: audit, Queue: queue}
+func NewJobService(jobs repo.JobRepo, apps repo.ApplicationRepo, audit repo.AuditRepo, queue TaskQueue, storage file.Storage) *JobService {
+	return &JobService{Jobs: jobs, Apps: apps, Audit: audit, Queue: queue, Storage: storage}
 }
 
 // audit 写审计日志（actor 可能为 nil，表示匿名/候选人操作）。
@@ -324,6 +326,51 @@ func jsonEqual(a, b any) bool {
 	return string(ab) == string(bb)
 }
 
+// normalizePage 分页参数规范化：page≥1，pageSize∈[1,100]，默认 20。
+func normalizePage(page, pageSize int) (int, int) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 20
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+	return page, pageSize
+}
+
+// ============ 公开端（无需登录） ============
+
+// ListPublic 公开岗位列表（仅 status='open'，按 published_at desc）。
+func (s *JobService) ListPublic(ctx context.Context, q domain.JobListQuery) (*domain.Paginated[domain.JobPosting], error) {
+	page, pageSize := normalizePage(q.Page, q.PageSize)
+	items, total, err := s.Jobs.ListPublic(ctx, repo.JobListFilter{
+		Q:            q.Q,
+		DepartmentID: q.DepartmentID,
+		JobType:      q.JobType,
+	}, page, pageSize)
+	if err != nil {
+		return nil, domain.WrapError(500, domain.CodeInternal, "查询岗位列表失败", err)
+	}
+	return &domain.Paginated[domain.JobPosting]{Items: items, Total: total, Page: page, PageSize: pageSize}, nil
+}
+
+// GetPublic 公开岗位详情（仅 open）。
+func (s *JobService) GetPublic(ctx context.Context, id string) (*domain.JobPosting, error) {
+	job, err := s.Jobs.Get(ctx, id)
+	if err != nil {
+		if err == repo.ErrNotFound {
+			return nil, domain.NewError(404, domain.CodeNotFound, "岗位不存在")
+		}
+		return nil, domain.WrapError(500, domain.CodeInternal, "查询岗位失败", err)
+	}
+	if job.Status != string(domain.JobStatusOpen) {
+		return nil, domain.NewError(404, domain.CodeNotFound, "岗位不存在或未发布")
+	}
+	return job, nil
+}
+
 // ============ 候选人（投递） ============
 
 // requireJobAccess 校验岗位访问权限，返回岗位。
@@ -455,20 +502,15 @@ func (s *JobService) Stats(ctx context.Context, actor *Actor, jobID string) (*do
 }
 
 // ResumeURL 简历文件预签名下载地址（1 小时）。
-func (s *JobService) ResumeURL(ctx context.Context, actor *Actor, appID string, presign func(ctx context.Context, key string, expire time.Duration) (string, error)) (string, error) {
-	app, err := s.requireApplicationAccess(ctx, actor, appID)
-	if err != nil {
+func (s *JobService) ResumeURL(ctx context.Context, actor *Actor, appID string) (string, error) {
+	if _, err := s.requireApplicationAccess(ctx, actor, appID); err != nil {
 		return "", err
 	}
-	if app.HasResumeFile == false {
-		return "", domain.NewError(404, domain.CodeNotFound, "该投递没有简历文件")
-	}
-	// 需要 resume_file_key：从详情中读取。
 	key, err := s.resumeFileKey(ctx, appID)
 	if err != nil {
 		return "", err
 	}
-	url, err := presign(ctx, key, time.Hour)
+	url, err := s.Storage.PresignedGetURL(ctx, key, time.Hour)
 	if err != nil {
 		return "", domain.WrapError(500, domain.CodeInternal, "生成下载链接失败", err)
 	}

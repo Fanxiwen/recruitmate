@@ -33,18 +33,19 @@ JOB_ID=$(echo "$JOBS" | python3 -c "import sys,json;print(json.load(sys.stdin)['
 curl -sf "$API/public/jobs/$JOB_ID" | grep -q '"requirements"' && check "岗位详情" 0 || check "岗位详情" 1
 
 # 投递（粘贴文本简历）
+CANDIDATE_EMAIL="smoke-$(date +%s)@test.local"
 APPLY=$(curl -sf -X POST "$API/public/jobs/$JOB_ID/applications" \
-  -F "name=冒烟测试" -F "email=smoke-$(date +%s)@test.local" -F "phone=13800000000" \
+  -F "name=冒烟测试" -F "email=$CANDIDATE_EMAIL" -F "phone=13800000000" \
   -F "source=smoke" -F "resumeText=姓名：冒烟测试。5年Go开发经验，熟悉PostgreSQL与Redis，本科毕业于某大学。" || true)
 echo "$APPLY" | grep -q '"id"' && check "投递简历（文本）" 0 || check "投递简历（文本）" 1
 
-# 重复投递应 409
+# 重复投递（同邮箱同岗位）应 409
 CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$API/public/jobs/$JOB_ID/applications" \
-  -F "name=冒烟测试" -F "email=dup-$(date +%s)@test.local" -F "phone=13800000000" -F "resumeText=x")
+  -F "name=冒烟测试" -F "email=$CANDIDATE_EMAIL" -F "phone=13800000000" -F "resumeText=x")
 check "重复投递防护(409)" "$([ "$CODE" = "409" ] && echo 0 || echo 1)"
 
-# 候选人验证码登录
-EMAIL="candidate-smoke@test.local"
+# 候选人验证码登录（时间戳邮箱避免 60s 限流）
+EMAIL="candidate-smoke-$(date +%s)@test.local"
 curl -sf -X POST "$API/public/auth/email-code" -H 'Content-Type: application/json' -d "{\"email\":\"$EMAIL\"}" >/dev/null && check "发送邮箱验证码" 0 || check "发送邮箱验证码" 1
 # 验证码打印在后端日志；此处直接断言错误码路径可用
 CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$API/public/auth/verify" -H 'Content-Type: application/json' -d "{\"email\":\"$EMAIL\",\"code\":\"000000\"}")
@@ -68,9 +69,12 @@ NEWJOB=$(curl -sf -X POST "$API/internal/jobs" -H "$AUTH" -H 'Content-Type: appl
 echo "$NEWJOB" | grep -q '"draft"' && check "创建草稿岗位" 0 || check "创建草稿岗位" 1
 NEWJOB_ID=$(echo "$NEWJOB" | python3 -c "import sys,json;print(json.load(sys.stdin)['id'])" 2>/dev/null || true)
 
-# 提交审批 → 审批通过 → 公开可见
+# 提交审批（HR）→ 审批通过（管理员：按设计审批权在管理员/部门负责人）
 curl -sf -X POST "$API/internal/jobs/$NEWJOB_ID/submit" -H "$AUTH" >/dev/null && check "提交审批" 0 || check "提交审批" 1
-curl -sf -X POST "$API/internal/jobs/$NEWJOB_ID/approve" -H "$AUTH" >/dev/null && check "审批通过" 0 || check "审批通过" 1
+ADMIN_TOKEN=$(curl -sf -X POST "$API/internal/auth/login" -H 'Content-Type: application/json' \
+  -d '{"email":"admin@recruitmate.local","password":"Recruitmate1!"}' | python3 -c "import sys,json;print(json.load(sys.stdin)['token'])" 2>/dev/null || true)
+[ -n "$ADMIN_TOKEN" ] && check "管理员登录" 0 || check "管理员登录" 1
+curl -sf -X POST "$API/internal/jobs/$NEWJOB_ID/approve" -H "Authorization: Bearer $ADMIN_TOKEN" >/dev/null && check "审批通过" 0 || check "审批通过" 1
 
 # 候选人列表（默认按匹配度排序）
 APPS=$(curl -sf -H "$AUTH" "$API/internal/jobs/$JOB_ID/applications" || true)
