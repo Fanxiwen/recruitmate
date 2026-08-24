@@ -1,9 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { QueryClient } from '@tanstack/react-query';
 import { ApiError } from '@recruitmate/api-client';
 import type {
   ApplicationInternal,
   ApplicationStage,
   BatchActionRequest,
+  CandidateListQuery,
+  InterviewRound,
   JobPosting,
   JobPostingInput,
   JobStatus,
@@ -37,6 +40,19 @@ export async function request<T>(fn: () => Promise<T>): Promise<T> {
 /** 通用错误提示文案（供 mutation onError 使用） */
 export function errorMessage(err: unknown, fallback = '操作失败，请稍后重试'): string {
   return err instanceof ApiError ? err.message : fallback;
+}
+
+/**
+ * 面试/阶段/Offer 变更后统一失效的查询：
+ * 候选人中心（candidates）、我的待办（todos）、岗位候选人（applications）、
+ * 详情（application）与岗位统计（jobStats）互相影响，一次变更全部刷新。
+ */
+function invalidateApplicationData(queryClient: QueryClient, applicationId?: string) {
+  queryClient.invalidateQueries({ queryKey: ['applications'] });
+  if (applicationId) queryClient.invalidateQueries({ queryKey: ['application', applicationId] });
+  queryClient.invalidateQueries({ queryKey: ['todos'] });
+  queryClient.invalidateQueries({ queryKey: ['candidates'] });
+  queryClient.invalidateQueries({ queryKey: ['jobStats'] });
 }
 
 // ==================== 查询 ====================
@@ -83,11 +99,21 @@ export function useApprovalOffers(page = 1, pageSize = 20) {
   });
 }
 
-/** 待处理（新简历）列表：30s 轮询，投递后 HR 能及时看到 */
-export function usePendingApplications(page = 1, pageSize = 20) {
+/** 候选人中心：全局候选人列表（筛选条件变化时由调用方重置页码） */
+export function useCandidates(query: CandidateListQuery) {
   return useQuery({
-    queryKey: ['applications', 'pending', page, pageSize],
-    queryFn: () => request(() => api.listPendingApplications(page, pageSize)),
+    queryKey: ['candidates', query],
+    queryFn: () => request(() => api.listCandidates(query)),
+    refetchInterval: 30_000,
+    placeholderData: (prev) => prev,
+  });
+}
+
+/** 我的待办：面试类待办（后端按角色返回；页面按返回的 kind 分组渲染） */
+export function useInterviewTodos() {
+  return useQuery({
+    queryKey: ['todos', 'interviews'],
+    queryFn: () => request(() => api.listInterviewTodos()),
     refetchInterval: 30_000,
   });
 }
@@ -198,23 +224,19 @@ export function useSetStage() {
     mutationFn: ({ id, stage, reason }: { id: string; stage: ApplicationStage; reason?: string }) =>
       request(() => api.setStage(id, stage, reason)),
     onSuccess: (updated) => {
-      queryClient.invalidateQueries({ queryKey: ['applications'] });
-      queryClient.invalidateQueries({ queryKey: ['application', updated.id] });
-      queryClient.invalidateQueries({ queryKey: ['jobStats', updated.jobId] });
+      invalidateApplicationData(queryClient, updated.id);
     },
   });
 }
 
-/** 发起 Offer 审批（HR/管理员，stage 必须为 interview） */
+/** 发起 Offer 审批（HR/管理员，候选人须处于部门负责人面阶段） */
 export function useCreateOffer() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, body }: { id: string; body: OfferRequest }) =>
       request(() => api.createOffer(id, body)),
     onSuccess: (_offer, { id }) => {
-      queryClient.invalidateQueries({ queryKey: ['applications'] });
-      queryClient.invalidateQueries({ queryKey: ['application', id] });
-      queryClient.invalidateQueries({ queryKey: ['jobStats'] });
+      invalidateApplicationData(queryClient, id);
     },
   });
 }
@@ -235,9 +257,7 @@ export function useDecideOffer() {
       reason?: string;
     }) => request(() => api.decideOffer(id, decision, { salary, reason })),
     onSuccess: (updated) => {
-      queryClient.invalidateQueries({ queryKey: ['applications'] });
-      queryClient.invalidateQueries({ queryKey: ['application', updated.id] });
-      queryClient.invalidateQueries({ queryKey: ['jobStats', updated.jobId] });
+      invalidateApplicationData(queryClient, updated.id);
     },
   });
 }
@@ -248,9 +268,42 @@ export function useBatchAction(jobId: string) {
   return useMutation({
     mutationFn: (body: BatchActionRequest) => request(() => api.batchAction(body)),
     onSuccess: (_res, body) => {
-      queryClient.invalidateQueries({ queryKey: ['applications'] });
+      invalidateApplicationData(queryClient);
       body.ids.forEach((id) => queryClient.invalidateQueries({ queryKey: ['application', id] }));
-      queryClient.invalidateQueries({ queryKey: ['jobStats', jobId] });
+      if (jobId) queryClient.invalidateQueries({ queryKey: ['jobStats', jobId] });
+    },
+  });
+}
+
+/** 安排一轮面试（时间必填；后端据此推进阶段：hr→interview，manager→manager_interview） */
+export function useScheduleInterview() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, round, scheduledAt }: { id: string; round: InterviewRound; scheduledAt: string }) =>
+      request(() => api.scheduleInterview(id, round, scheduledAt)),
+    onSuccess: (_iv, { id }) => {
+      invalidateApplicationData(queryClient, id);
+    },
+  });
+}
+
+/** 完成一轮面试（评价必填；不通过时后端自动转 rejected） */
+export function useCompleteInterview() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      round,
+      result,
+      feedback,
+    }: {
+      id: string;
+      round: InterviewRound;
+      result: 'pass' | 'fail';
+      feedback: string;
+    }) => request(() => api.completeInterview(id, round, result, feedback)),
+    onSuccess: (updated) => {
+      invalidateApplicationData(queryClient, updated.id);
     },
   });
 }

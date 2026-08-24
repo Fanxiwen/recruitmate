@@ -132,6 +132,20 @@ type ApplicationRepo interface {
 	ListOfferPending(ctx context.Context, deptID *string, page, pageSize int) ([]domain.ApprovalOfferItem, int, error)
 	// ListPendingApplications 待处理（新简历）列表（deptID 非空时仅本部门）。
 	ListPendingApplications(ctx context.Context, deptID *string, page, pageSize int) ([]domain.ApplicationInternal, int, error)
+	// ListCandidates 候选人中心全局列表（阶段/部门/岗位/关键词筛选，含面试记录）。
+	ListCandidates(ctx context.Context, f CandidateListFilter, page, pageSize int) ([]domain.ApplicationInternal, int, error)
+	// ListActiveApplications 进行中（非终态）投递列表（含面试记录，供待办分类）。
+	ListActiveApplications(ctx context.Context, deptID *string) ([]domain.ApplicationInternal, error)
+
+	// ===== 面试实体 =====
+	// UpsertInterview 安排/改期一轮面试。
+	UpsertInterview(ctx context.Context, applicationID, round string, scheduledAt time.Time) (*domain.Interview, error)
+	// GetInterviewByRound 查询某投递某轮面试（无则 ErrNotFound）。
+	GetInterviewByRound(ctx context.Context, applicationID, round string) (*domain.Interview, error)
+	// CompleteInterview 完成一轮面试（评价 + 结论）。
+	CompleteInterview(ctx context.Context, applicationID, round, result, feedback, reviewedBy string) error
+	// ListInterviews 查询某投递的全部面试记录。
+	ListInterviews(ctx context.Context, applicationID string) ([]domain.Interview, error)
 }
 
 // AuditLog 审计日志记录。

@@ -73,12 +73,9 @@ test('内部端：HR 登录并查看候选人（匹配度排序 + 匹配报告�
   // 这里用普通点击作为该修复的回归验证。
   await firstRow.getByRole('button', { name: '详情' }).click();
   await expect(page.getByText('AI 匹配报告')).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText('流程时间线')).toBeVisible({ timeout: 15_000 });
   await page.keyboard.press('Escape');
   await expect(page.getByText('AI 匹配报告')).toBeHidden();
-
-  // 行内流转阶段：新简历 → 初筛通过
-  const stageSelect = firstRow.locator('.ant-select').first();
-  await stageSelect.click();
-  await page.locator('.ant-select-dropdown').getByText('初筛通过').first().click();
-  await expect(firstRow.getByTitle('初筛通过')).toBeVisible({ timeout: 15_000 });
+  // 注：阶段流转/面试/Offer 全链路由 scripts/oa-flow-test.sh 覆盖（状态机限制了
+  // 表格行可用流转选项，UI 级断言不再依赖固定行的阶段）。
 });

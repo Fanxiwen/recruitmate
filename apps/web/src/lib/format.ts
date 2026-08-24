@@ -1,4 +1,4 @@
-import type { ApplicationStage, Role } from '@recruitmate/shared-types';
+import type { ApplicationStage, InterviewRound, Role } from '@recruitmate/shared-types';
 import dayjs from 'dayjs';
 
 /** 角色中文名（shared-types 未提供，此处为前端展示用本地映射） */
@@ -6,6 +6,12 @@ export const ROLE_LABELS: Record<Role, string> = {
   admin: '管理员',
   hr: 'HR',
   hiring_manager: '部门负责人',
+};
+
+/** 面试轮次中文名 */
+export const INTERVIEW_ROUND_LABELS: Record<InterviewRound, string> = {
+  hr: 'HR 初面',
+  manager: '部门负责人面',
 };
 
 /** 阶段对应的 Tag 颜色（仅展示用） */

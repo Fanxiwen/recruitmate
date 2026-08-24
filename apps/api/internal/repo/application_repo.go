@@ -480,6 +480,187 @@ SELECT COUNT(*) FROM applications a JOIN job_postings j ON j.id = a.job_id`+wher
 	return out, total, rows.Err()
 }
 
+// ============ 候选人中心 ============
+
+// CandidateListFilter 候选人中心筛选条件。
+type CandidateListFilter struct {
+	Stage        string
+	DepartmentID *string
+	JobID        string
+	Q            string
+	Sort         string // score_desc / newest
+}
+
+// ListCandidates 候选人中心：全局候选人列表（跨岗位，按阶段/部门/岗位/关键词筛选）。
+func (s *ApplicationStore) ListCandidates(ctx context.Context, f CandidateListFilter, page, pageSize int) ([]domain.ApplicationInternal, int, error) {
+	where := ` WHERE 1=1
+  AND ($1::text = '' OR a.stage = $1)
+  AND ($2::uuid IS NULL OR j.department_id = $2)
+  AND ($3::text = '' OR a.job_id = $3::uuid)
+  AND ($4::text = '' OR c.name ILIKE '%'||$4||'%' OR c.email ILIKE '%'||$4||'%')`
+	args := []any{f.Stage, nullableStringPtr(f.DepartmentID), f.JobID, f.Q}
+
+	var total int
+	if err := s.pool.QueryRow(ctx, `
+SELECT COUNT(*) FROM applications a JOIN candidates c ON c.id = a.candidate_id JOIN job_postings j ON j.id = a.job_id`+where, args...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	orderBy := ` ORDER BY a.match_score DESC NULLS LAST, a.submitted_at DESC`
+	if f.Sort == "newest" {
+		orderBy = ` ORDER BY a.submitted_at DESC`
+	}
+	args = append(args, pageSize, (page-1)*pageSize)
+	rows, err := s.pool.Query(ctx, appInternalSelect+where+orderBy+` LIMIT $5 OFFSET $6`, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	out := make([]domain.ApplicationInternal, 0)
+	for rows.Next() {
+		a, err := scanApplicationInternal(rows)
+		if err != nil {
+			return nil, 0, err
+		}
+		out = append(out, *a)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+	s.attachInterviews(ctx, out)
+	return out, total, nil
+}
+
+// ListActiveApplications 进行中（非终态）投递列表，供我的待办分类（含面试记录）。
+func (s *ApplicationStore) ListActiveApplications(ctx context.Context, deptID *string) ([]domain.ApplicationInternal, error) {
+	where := ` WHERE a.stage IN ('new','screening','interview','manager_interview') AND ($1::uuid IS NULL OR j.department_id = $1)`
+	rows, err := s.pool.Query(ctx, appInternalSelect+where+` ORDER BY a.submitted_at ASC`, nullableStringPtr(deptID))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]domain.ApplicationInternal, 0)
+	for rows.Next() {
+		a, err := scanApplicationInternal(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *a)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	s.attachInterviews(ctx, out)
+	return out, nil
+}
+
+// attachInterviews 批量附带面试记录（避免 N+1）。
+func (s *ApplicationStore) attachInterviews(ctx context.Context, apps []domain.ApplicationInternal) {
+	if len(apps) == 0 {
+		return
+	}
+	ids := make([]string, 0, len(apps))
+	for i := range apps {
+		ids = append(ids, apps[i].ID)
+	}
+	rows, err := s.pool.Query(ctx, `
+SELECT i.application_id, i.id, i.round, i.scheduled_at, i.status, i.result, i.feedback,
+       COALESCE(u.name, ''), i.reviewed_at
+FROM interviews i LEFT JOIN users u ON u.id = i.reviewed_by
+WHERE i.application_id = ANY($1::uuid[]) ORDER BY i.round`, ids)
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+	byApp := map[string][]domain.Interview{}
+	for rows.Next() {
+		var appID string
+		var iv domain.Interview
+		if err := rows.Scan(&appID, &iv.ID, &iv.Round, &iv.ScheduledAt, &iv.Status, &iv.Result,
+			&iv.Feedback, &iv.ReviewedByName, &iv.ReviewedAt); err != nil {
+			return
+		}
+		byApp[appID] = append(byApp[appID], iv)
+	}
+	for i := range apps {
+		if ivs, ok := byApp[apps[i].ID]; ok {
+			apps[i].Interviews = ivs
+		}
+	}
+}
+
+// ============ 面试实体 ============
+
+// UpsertInterview 安排/改期一轮面试（存在则更新时间为 scheduled）。
+func (s *ApplicationStore) UpsertInterview(ctx context.Context, applicationID, round string, scheduledAt time.Time) (*domain.Interview, error) {
+	var iv domain.Interview
+	err := s.pool.QueryRow(ctx, `
+INSERT INTO interviews (application_id, round, scheduled_at, status)
+VALUES ($1, $2, $3, 'scheduled')
+ON CONFLICT (application_id, round) DO UPDATE
+  SET scheduled_at = $3, status = 'scheduled'
+RETURNING id, round, scheduled_at, status, result, feedback`,
+		applicationID, round, scheduledAt).Scan(&iv.ID, &iv.Round, &iv.ScheduledAt, &iv.Status, &iv.Result, &iv.Feedback)
+	if err != nil {
+		return nil, fmt.Errorf("repo: upsert interview: %w", err)
+	}
+	return &iv, nil
+}
+
+// GetInterviewByRound 查询某投递某轮面试（无则 ErrNotFound）。
+func (s *ApplicationStore) GetInterviewByRound(ctx context.Context, applicationID, round string) (*domain.Interview, error) {
+	var iv domain.Interview
+	err := s.pool.QueryRow(ctx, `
+SELECT id, round, scheduled_at, status, result, feedback
+FROM interviews WHERE application_id = $1 AND round = $2`,
+		applicationID, round).Scan(&iv.ID, &iv.Round, &iv.ScheduledAt, &iv.Status, &iv.Result, &iv.Feedback)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	return &iv, nil
+}
+
+// CompleteInterview 完成一轮面试：写入评价与结论。
+func (s *ApplicationStore) CompleteInterview(ctx context.Context, applicationID, round, result, feedback, reviewedBy string) error {
+	tag, err := s.pool.Exec(ctx, `
+UPDATE interviews SET status='completed', result=$3, feedback=$4, reviewed_by=$5, reviewed_at=now()
+WHERE application_id = $1 AND round = $2 AND status <> 'completed'`,
+		applicationID, round, result, feedback, reviewedBy)
+	if err != nil {
+		return fmt.Errorf("repo: complete interview: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// ListInterviews 查询某投递的全部面试记录（含评价人姓名）。
+func (s *ApplicationStore) ListInterviews(ctx context.Context, applicationID string) ([]domain.Interview, error) {
+	rows, err := s.pool.Query(ctx, `
+SELECT i.id, i.round, i.scheduled_at, i.status, i.result, i.feedback, COALESCE(u.name, ''), i.reviewed_at
+FROM interviews i LEFT JOIN users u ON u.id = i.reviewed_by
+WHERE i.application_id = $1 ORDER BY i.round`, applicationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]domain.Interview, 0)
+	for rows.Next() {
+		var iv domain.Interview
+		if err := rows.Scan(&iv.ID, &iv.Round, &iv.ScheduledAt, &iv.Status, &iv.Result,
+			&iv.Feedback, &iv.ReviewedByName, &iv.ReviewedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, iv)
+	}
+	return out, rows.Err()
+}
+
 // UpdateResumeFileKey 投递创建后写入简历文件 key。
 func (s *ApplicationStore) UpdateResumeFileKey(ctx context.Context, id, fileKey string) error {
 	_, err := s.pool.Exec(ctx, `UPDATE applications SET resume_file_key = $2 WHERE id = $1`, id, fileKey)

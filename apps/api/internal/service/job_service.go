@@ -423,7 +423,7 @@ func (s *JobService) ListApplications(ctx context.Context, actor *Actor, jobID s
 	return &domain.Paginated[domain.ApplicationInternal]{Items: items, Total: total, Page: page, PageSize: pageSize}, nil
 }
 
-// GetApplication 投递详情（含 Offer 审批单与流转时间线）。
+// GetApplication 投递详情（含 Offer 审批单、流转时间线与面试记录）。
 func (s *JobService) GetApplication(ctx context.Context, actor *Actor, appID string) (*domain.ApplicationInternal, error) {
 	app, err := s.requireApplicationAccess(ctx, actor, appID)
 	if err != nil {
@@ -437,8 +437,248 @@ func (s *JobService) GetApplication(ctx context.Context, actor *Actor, appID str
 	if events, err := s.Apps.ListApplicationEvents(ctx, appID); err == nil {
 		app.Events = events
 	}
+	// 面试记录
+	if interviews, err := s.Apps.ListInterviews(ctx, appID); err == nil {
+		app.Interviews = interviews
+	}
 	s.audit(ctx, actor, "application.view", "application", appID, nil)
 	return app, nil
+}
+
+// ============ 候选人中心与我的待办 ============
+
+// ListCandidates 候选人中心：全局候选人列表（阶段/部门/岗位/关键词筛选）。
+func (s *JobService) ListCandidates(ctx context.Context, actor *Actor, f repo.CandidateListFilter, page, pageSize int) (*domain.Paginated[domain.ApplicationInternal], error) {
+	if actor == nil {
+		return nil, domain.NewError(401, domain.CodeUnauthorized, "未登录")
+	}
+	if actor.isHiringManager() {
+		if f.DepartmentID != nil && *f.DepartmentID != *actor.DepID {
+			return nil, domain.NewError(403, domain.CodeForbidden, "无权查看其他部门候选人")
+		}
+		// 强制本部门范围
+		dep := *actor.DepID
+		f.DepartmentID = &dep
+	}
+	items, total, err := s.Apps.ListCandidates(ctx, f, page, pageSize)
+	if err != nil {
+		return nil, domain.WrapError(500, domain.CodeInternal, "查询候选人列表失败", err)
+	}
+	return &domain.Paginated[domain.ApplicationInternal]{Items: items, Total: total, Page: page, PageSize: pageSize}, nil
+}
+
+// ListInterviewTodos 我的待办（面试类）：按角色分类进行中的候选人。
+func (s *JobService) ListInterviewTodos(ctx context.Context, actor *Actor) ([]domain.InterviewTodoItem, error) {
+	if actor == nil {
+		return nil, domain.NewError(401, domain.CodeUnauthorized, "未登录")
+	}
+	var deptID *string
+	if actor.isHiringManager() {
+		deptID = actor.DepID
+	}
+	apps, err := s.Apps.ListActiveApplications(ctx, deptID)
+	if err != nil {
+		return nil, domain.WrapError(500, domain.CodeInternal, "查询待办失败", err)
+	}
+
+	out := make([]domain.InterviewTodoItem, 0)
+	for _, a := range apps {
+		hr := interviewOf(a.Interviews, "hr")
+		mg := interviewOf(a.Interviews, "manager")
+		item := domain.InterviewTodoItem{Application: a}
+		switch {
+		case a.Stage == string(domain.StageNew):
+			item.Kind = "screen" // 待初筛（HR）
+		case a.Stage == string(domain.StageScreening):
+			item.Kind = "schedule_hr" // 待安排 HR 面（HR）
+		case a.Stage == string(domain.StageInterview):
+			if hr != nil && hr.Status == "completed" && hr.Result == "pass" {
+				item.Kind = "schedule_manager" // HR 面通过，待安排负责人面（HR）
+				item.Interview = mg
+			} else if hr != nil && hr.Status == "scheduled" {
+				item.Kind = "review_hr" // HR 面待评价（HR）
+				item.Interview = hr
+			} else {
+				continue
+			}
+		case a.Stage == string(domain.StageManagerInterview):
+			if mg != nil && mg.Status == "scheduled" {
+				item.Kind = "review_manager" // 负责人面待评价（部门负责人）
+				item.Interview = mg
+			} else if mg != nil && mg.Status == "completed" && mg.Result == "pass" {
+				item.Kind = "offer_ready" // 负责人面通过，待发起 Offer（HR）
+				item.Interview = mg
+			} else {
+				continue
+			}
+		default:
+			continue
+		}
+		// 角色过滤：HR 看 screen/schedule_hr/schedule_manager/offer_ready/review_hr；
+		// 部门负责人看 review_manager；管理员全部可见（兜底审批/评价）。
+		if actor.isHiringManager() {
+			if item.Kind != "review_manager" {
+				continue
+			}
+		} else if !actor.isAdmin() && item.Kind == "review_manager" {
+			continue
+		}
+		out = append(out, item)
+	}
+	return out, nil
+}
+
+func interviewOf(interviews []domain.Interview, round string) *domain.Interview {
+	for i := range interviews {
+		if interviews[i].Round == round {
+			return &interviews[i]
+		}
+	}
+	return nil
+}
+
+// ============ 面试实体（安排 / 完成） ============
+
+// ScheduleInterview 安排一轮面试（时间必填），并推进阶段：
+//   - round=hr：stage 须为 screening（或 interview 改期）→ 进入 interview
+//   - round=manager：须 HR 面已通过，stage 须为 interview（或 manager_interview 改期）→ 进入 manager_interview
+func (s *JobService) ScheduleInterview(ctx context.Context, actor *Actor, appID, round string, scheduledAt time.Time) (*domain.Interview, error) {
+	if actor == nil {
+		return nil, domain.NewError(401, domain.CodeUnauthorized, "未登录")
+	}
+	if !actor.isAdmin() && !actor.isHR() {
+		return nil, domain.NewError(403, domain.CodeForbidden, "仅 HR 或管理员可安排面试")
+	}
+	app, err := s.requireApplicationAccess(ctx, actor, appID)
+	if err != nil {
+		return nil, err
+	}
+	// 加载面试记录（GetByID 不附带）
+	interviews, err := s.Apps.ListInterviews(ctx, appID)
+	if err != nil {
+		slog.Error("list interviews failed", "application_id", appID, "error", err)
+		return nil, domain.WrapError(500, domain.CodeInternal, "查询面试记录失败", err)
+	}
+	app.Interviews = interviews
+	now := time.Now()
+	if scheduledAt.Before(now.Add(-time.Minute)) {
+		return nil, domain.NewError(400, domain.CodeBadRequest, "面试时间不能早于当前时间")
+	}
+
+	fromStage := app.Stage
+	switch round {
+	case "hr":
+		if app.Stage != string(domain.StageScreening) && app.Stage != string(domain.StageInterview) {
+			return nil, domain.NewError(409, domain.CodeConflict, "仅「初筛通过」的候选人可安排 HR 面")
+		}
+		if app.Stage == string(domain.StageScreening) {
+			if err := s.Apps.UpdateStage(ctx, appID, string(domain.StageInterview), ""); err != nil {
+				return nil, domain.WrapError(500, domain.CodeInternal, "更新阶段失败", err)
+			}
+			fromStage = string(domain.StageScreening)
+		}
+	case "manager":
+		if app.Stage != string(domain.StageInterview) && app.Stage != string(domain.StageManagerInterview) {
+			return nil, domain.NewError(409, domain.CodeConflict, "仅「HR 面通过」的候选人可安排负责人面")
+		}
+		hr := interviewOf(app.Interviews, "hr")
+		if hr == nil || hr.Result != "pass" {
+			return nil, domain.NewError(409, domain.CodeConflict, "请先完成 HR 面并确认通过")
+		}
+		if app.Stage == string(domain.StageInterview) {
+			if err := s.Apps.UpdateStage(ctx, appID, string(domain.StageManagerInterview), ""); err != nil {
+				return nil, domain.WrapError(500, domain.CodeInternal, "更新阶段失败", err)
+			}
+			fromStage = string(domain.StageInterview)
+		}
+	default:
+		return nil, domain.NewError(400, domain.CodeBadRequest, "面试轮次不合法")
+	}
+
+	iv, err := s.Apps.UpsertInterview(ctx, appID, round, scheduledAt)
+	if err != nil {
+		return nil, domain.WrapError(500, domain.CodeInternal, "安排面试失败", err)
+	}
+	s.recordEvent(ctx, appID, fromStage, app.Stage, "interview_schedule", actor,
+		fmt.Sprintf("%s 面试时间：%s", roundLabel(round), scheduledAt.Format("2006-01-02 15:04")))
+	s.audit(ctx, actor, "application.interview.schedule", "application", appID, map[string]any{"round": round})
+	return iv, nil
+}
+
+// CompleteInterview 完成一轮面试：评价必填，结论驱动流程。
+//   - round=hr：由 HR/管理员评价；通过 → 待安排负责人面；不通过 → rejected
+//   - round=manager：由部门负责人/管理员评价；通过 → 待发起 Offer；不通过 → rejected
+func (s *JobService) CompleteInterview(ctx context.Context, actor *Actor, appID, round, result, feedback string) (*domain.ApplicationInternal, error) {
+	if actor == nil {
+		return nil, domain.NewError(401, domain.CodeUnauthorized, "未登录")
+	}
+	app, err := s.requireApplicationAccess(ctx, actor, appID)
+	if err != nil {
+		return nil, err
+	}
+	feedback = strings.TrimSpace(feedback)
+	if feedback == "" {
+		return nil, domain.NewError(400, domain.CodeBadRequest, "请填写面试评价")
+	}
+	if result != "pass" && result != "fail" {
+		return nil, domain.NewError(400, domain.CodeBadRequest, "面试结论不合法")
+	}
+
+	switch round {
+	case "hr":
+		if !actor.isAdmin() && !actor.isHR() {
+			return nil, domain.NewError(403, domain.CodeForbidden, "仅 HR 或管理员可完成 HR 面评价")
+		}
+		if app.Stage != string(domain.StageInterview) {
+			return nil, domain.NewError(409, domain.CodeConflict, "候选人不在 HR 面阶段")
+		}
+	case "manager":
+		if !actor.isAdmin() && !actor.isHiringManager() {
+			return nil, domain.NewError(403, domain.CodeForbidden, "仅部门负责人或管理员可完成负责人面评价")
+		}
+		if app.Stage != string(domain.StageManagerInterview) {
+			return nil, domain.NewError(409, domain.CodeConflict, "候选人不在部门负责人面阶段")
+		}
+	default:
+		return nil, domain.NewError(400, domain.CodeBadRequest, "面试轮次不合法")
+	}
+
+	if err := s.Apps.CompleteInterview(ctx, appID, round, result, feedback, actor.UserID); err != nil {
+		if err == repo.ErrNotFound {
+			return nil, domain.NewError(409, domain.CodeConflict, "该轮面试尚未安排")
+		}
+		return nil, domain.WrapError(500, domain.CodeInternal, "提交面试评价失败", err)
+	}
+	s.recordEvent(ctx, appID, app.Stage, app.Stage, "interview_complete", actor,
+		fmt.Sprintf("%s：%s · %s", roundLabel(round), resultLabel(result), feedback))
+
+	if result == "fail" {
+		if err := s.Apps.UpdateStage(ctx, appID, string(domain.StageRejected),
+			fmt.Sprintf("%s未通过：%s", roundLabel(round), feedback)); err != nil {
+			return nil, domain.WrapError(500, domain.CodeInternal, "更新阶段失败", err)
+		}
+		s.recordEvent(ctx, appID, app.Stage, string(domain.StageRejected), "stage_change", actor,
+			fmt.Sprintf("%s未通过", roundLabel(round)))
+	}
+	updated, err := s.Apps.GetByID(ctx, appID)
+	if err != nil {
+		return nil, domain.WrapError(500, domain.CodeInternal, "读取投递失败", err)
+	}
+	return updated, nil
+}
+
+func roundLabel(round string) string {
+	if round == "hr" {
+		return "HR 面"
+	}
+	return "部门负责人面"
+}
+
+func resultLabel(result string) string {
+	if result == "pass" {
+		return "通过"
+	}
+	return "不通过"
 }
 
 // SetStage 流转阶段（OA 状态机：非法流转拒绝；转 rejected 必填原因）。
@@ -500,6 +740,15 @@ func (s *JobService) OfferRequest(ctx context.Context, actor *Actor, appID, sala
 	}
 	if app.Stage != string(domain.StageManagerInterview) {
 		return nil, domain.NewError(409, domain.CodeConflict, "仅「部门负责人面」的候选人可发起 Offer 审批")
+	}
+	// 负责人面必须已完成并通过（面试结论驱动流程）
+	interviews, err := s.Apps.ListInterviews(ctx, appID)
+	if err != nil {
+		return nil, domain.WrapError(500, domain.CodeInternal, "查询面试记录失败", err)
+	}
+	mg := interviewOf(interviews, "manager")
+	if mg == nil || mg.Result != "pass" {
+		return nil, domain.NewError(409, domain.CodeConflict, "请先完成部门负责人面并确认通过")
 	}
 	offer := &domain.Offer{Salary: strings.TrimSpace(salary), JoinDate: strings.TrimSpace(joinDate), Note: strings.TrimSpace(note)}
 	offer, err = s.Apps.CreateOffer(ctx, offer, appID, actor.UserID)

@@ -69,14 +69,14 @@ var ValidStages = map[ApplicationStage]bool{
 }
 
 // StageTransitions 阶段流转状态机（服务端强制，与前端 shared-types 一致）。
-// 面试两轮：HR 初面 → 部门负责人面；Offer 由 HR 发起、部门负责人审批定薪；
-// 驳回回退部门负责人面。rejected → new 为「误杀恢复」。
+// 面试阶段推进由「安排面试/完成面试」动作驱动，不可手动跳转；
+// rejected → new 为「误杀恢复」，需 HR 手动执行并填写原因。
 var StageTransitions = map[ApplicationStage][]ApplicationStage{
 	StageNew:              {StageScreening, StageRejected},
-	StageScreening:        {StageInterview, StageRejected},
-	StageInterview:        {StageManagerInterview, StageRejected},
-	StageManagerInterview: {StageOfferPending, StageRejected},
-	StageOfferPending:     {StageOffered, StageManagerInterview}, // 经 Offer 审批接口流转
+	StageScreening:        {StageRejected}, // →interview 经「安排 HR 面」
+	StageInterview:        {StageRejected}, // →manager_interview 经「安排负责人面」
+	StageManagerInterview: {StageRejected}, // →offer_pending 经「发起 Offer」
+	StageOfferPending:     {StageOffered, StageManagerInterview},
 	StageOffered:          {StageHired, StageRejected},
 	StageHired:            {},
 	StageRejected:         {StageNew},
@@ -283,6 +283,20 @@ type ApplicationInternal struct {
 	InterviewFeedback string             `json:"interviewFeedback,omitempty"`
 	Offer             *Offer             `json:"offer,omitempty"`
 	Events            []ApplicationEvent `json:"events,omitempty"`
+	// Interviews 面试记录（HR 面 / 负责人面，详情与候选人中心返回）。
+	Interviews []Interview `json:"interviews,omitempty"`
+}
+
+// Interview 一轮面试（准确时间、评价与结论）。
+type Interview struct {
+	ID              string     `json:"id"`
+	Round           string     `json:"round"` // hr / manager
+	ScheduledAt     *time.Time `json:"scheduledAt,omitempty"`
+	Status          string     `json:"status"` // scheduled / completed / cancelled
+	Result          string     `json:"result"` // pending / pass / fail
+	Feedback        string     `json:"feedback"`
+	ReviewedByName  string     `json:"reviewedByName"`
+	ReviewedAt      *time.Time `json:"reviewedAt,omitempty"`
 }
 
 // Offer Offer 审批单。
@@ -313,6 +327,15 @@ type ApplicationEvent struct {
 type ApprovalOfferItem struct {
 	Application ApplicationInternal `json:"application"`
 	Offer       Offer               `json:"offer"`
+}
+
+// InterviewTodoItem 我的待办：面试类待办条目。
+type InterviewTodoItem struct {
+	// Kind screen 待初筛 / schedule_hr 待安排HR面 / review_hr HR面待评价 /
+	// schedule_manager 待安排负责人面 / review_manager 负责人面待评价 / offer_ready 待发起Offer
+	Kind        string                `json:"kind"`
+	Application ApplicationInternal   `json:"application"`
+	Interview   *Interview            `json:"interview,omitempty"`
 }
 
 // ApplicationPublic 求职者视角的投递状态视图。
@@ -441,6 +464,18 @@ type OfferRequest struct {
 type OfferDecisionRequest struct {
 	Salary string `json:"salary"`
 	Reason string `json:"reason"`
+}
+
+// ScheduleInterviewRequest 安排一轮面试请求。
+type ScheduleInterviewRequest struct {
+	Round       string `json:"round"`
+	ScheduledAt string `json:"scheduledAt"` // RFC3339
+}
+
+// CompleteInterviewRequest 完成一轮面试请求（评价必填）。
+type CompleteInterviewRequest struct {
+	Result   string `json:"result"` // pass / fail
+	Feedback string `json:"feedback"`
 }
 
 // ============ 错误类型 ============

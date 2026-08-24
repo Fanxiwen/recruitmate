@@ -1,10 +1,11 @@
-import type { ApplicationEvent, ApplicationInternal, ApplicationStage, Offer } from '@recruitmate/shared-types';
+import type { ApplicationEvent, ApplicationInternal, ApplicationStage, InterviewRound, Offer } from '@recruitmate/shared-types';
 import { STAGE_LABELS } from '@recruitmate/shared-types';
 import {
   Alert,
   Button,
   Card,
   Collapse,
+  DatePicker,
   Descriptions,
   Divider,
   Drawer,
@@ -14,6 +15,7 @@ import {
   List,
   Modal,
   Progress,
+  Radio,
   Select,
   Space,
   Statistic,
@@ -31,20 +33,33 @@ import {
 } from '@ant-design/icons';
 import { useState } from 'react';
 import type { ColumnsType } from 'antd/es/table';
+import type { Dayjs } from 'dayjs';
 import type { HardCheck } from '@recruitmate/shared-types';
 import { api } from '../lib/api';
-import { formatDateTime, STAGE_COLORS } from '../lib/format';
-import { errorMessage, useApplicationDetail, useDecideOffer, useSetStage, type ApplicationDetail } from '../hooks/useApi';
+import { formatDateTime, INTERVIEW_ROUND_LABELS, STAGE_COLORS } from '../lib/format';
+import {
+  errorMessage,
+  useApplicationDetail,
+  useCompleteInterview,
+  useDecideOffer,
+  useScheduleInterview,
+  useSetStage,
+  type ApplicationDetail,
+} from '../hooks/useApi';
 import { stageOptionsFor } from '../lib/stages';
 import { useAuthStore } from '../stores/auth';
+import { InterviewStatusTag } from './InterviewStatusTag';
+import { OfferCreateModal } from './OfferCreateModal';
 
 /** 时间线动作文案（action → 展示文案） */
-const EVENT_ACTION_LABELS: Record<ApplicationEvent['action'], string> = {
+const EVENT_ACTION_LABELS: Record<string, string> = {
   stage_change: '流转阶段',
   offer_request: '发起 Offer 审批',
   offer_approve: 'Offer 审批通过',
   offer_reject: 'Offer 审批驳回',
   feedback: '记录面试评价',
+  interview_schedule: '安排面试',
+  interview_complete: '面试评价',
 };
 
 /** Offer 审批状态展示 */
@@ -60,7 +75,7 @@ const OFFER_STATUS_COLORS: Record<Offer['status'], string> = {
   rejected: 'error',
 };
 
-/** 时间线事件文案：stage_change 带 from → to，其余动作固定文案 */
+/** 时间线事件文案：stage_change 带 from → to，其余动作固定文案（未知动作回退为原始 action） */
 function eventText(ev: ApplicationEvent): string {
   if (ev.action === 'stage_change') {
     const from = ev.fromStage
@@ -69,7 +84,7 @@ function eventText(ev: ApplicationEvent): string {
     const to = STAGE_LABELS[ev.toStage as ApplicationStage] ?? ev.toStage;
     return `流转阶段：${from}${to}`;
   }
-  return EVENT_ACTION_LABELS[ev.action];
+  return EVENT_ACTION_LABELS[ev.action] ?? ev.action;
 }
 
 interface MatchDrawerProps {
@@ -124,6 +139,8 @@ export function MatchDrawer({ open, application, onClose, onStageChange }: Match
 
   const setStageMutation = useSetStage();
   const decideOfferMutation = useDecideOffer();
+  const scheduleMutation = useScheduleInterview();
+  const completeMutation = useCompleteInterview();
 
   // ===== 阶段流转 → 淘汰原因弹窗 =====
   const [stageRejectOpen, setStageRejectOpen] = useState(false);
@@ -135,6 +152,19 @@ export function MatchDrawer({ open, application, onClose, onStageChange }: Match
   // ===== Offer 审批通过弹窗（最终薪资由部门负责人确定） =====
   const [offerApproveOpen, setOfferApproveOpen] = useState(false);
   const [offerApproveForm] = Form.useForm();
+
+  // ===== 发起 Offer 审批弹窗（负责人面通过后） =====
+  const [offerCreateOpen, setOfferCreateOpen] = useState(false);
+
+  // ===== 安排面试弹窗（DatePicker showTime，时间必填） =====
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [scheduleRound, setScheduleRound] = useState<InterviewRound | null>(null);
+  const [scheduleForm] = Form.useForm();
+
+  // ===== 完成面试弹窗（结论 + 评价必填） =====
+  const [completeOpen, setCompleteOpen] = useState(false);
+  const [completeRound, setCompleteRound] = useState<InterviewRound | null>(null);
+  const [completeForm] = Form.useForm();
 
   // 打开时拉取最新详情（含简历原文 resumeText，后端若未返回则回退为列表数据）
   const { data: detail } = useApplicationDetail(application?.id ?? '', open);
@@ -246,6 +276,77 @@ export function MatchDrawer({ open, application, onClose, onStageChange }: Match
   const md = app?.matchDetail;
   const pr = app?.parsedResume;
 
+  // ===== 面试记录 =====
+  const interviews = app?.interviews ?? [];
+  const hrInterview = interviews.find((iv) => iv.round === 'hr');
+  const managerInterview = interviews.find((iv) => iv.round === 'manager');
+
+  /** 当前用户角色判断：HR / 管理员 可安排面试、评价 HR 面、发起 Offer */
+  const isHRish = user?.role === 'hr' || user?.role === 'admin';
+  /** 部门负责人 / 管理员 可评价负责人面 */
+  const isManagerish = user?.role === 'hiring_manager' || user?.role === 'admin';
+
+  /** 面试操作按钮可见性（与后端状态机/角色权限一致） */
+  const canScheduleHr = isHRish && app?.stage === 'screening';
+  const canCompleteHr = isHRish && app?.stage === 'interview' && hrInterview?.status === 'scheduled';
+  const canScheduleManager = isHRish && app?.stage === 'interview' && hrInterview?.result === 'pass';
+  const canCompleteManager = isManagerish && app?.stage === 'manager_interview' && managerInterview?.status === 'scheduled';
+  const canCreateOffer = isHRish && app?.stage === 'manager_interview' && managerInterview?.result === 'pass';
+
+  /** 打开安排面试弹窗 */
+  const openSchedule = (round: InterviewRound) => {
+    setScheduleRound(round);
+    scheduleForm.resetFields();
+    setScheduleOpen(true);
+  };
+
+  /** 确认安排面试（时间必填，RFC3339 ISO） */
+  const confirmSchedule = async () => {
+    if (!app || !scheduleRound) return;
+    let scheduledAt = '';
+    try {
+      const values = await scheduleForm.validateFields();
+      scheduledAt = (values.scheduledAt as Dayjs).toISOString();
+    } catch {
+      return; // 表单校验未通过，Modal 内已有必填提示
+    }
+    try {
+      await scheduleMutation.mutateAsync({ id: app.id, round: scheduleRound, scheduledAt });
+      message.success('面试已安排');
+      setScheduleOpen(false);
+    } catch (err) {
+      message.error(errorMessage(err, '安排面试失败'));
+    }
+  };
+
+  /** 打开完成面试弹窗 */
+  const openComplete = (round: InterviewRound) => {
+    setCompleteRound(round);
+    completeForm.resetFields();
+    setCompleteOpen(true);
+  };
+
+  /** 确认完成面试（结论 + 评价必填） */
+  const confirmComplete = async () => {
+    if (!app || !completeRound) return;
+    let result: 'pass' | 'fail' = 'pass';
+    let feedback = '';
+    try {
+      const values = await completeForm.validateFields();
+      result = values.result as 'pass' | 'fail';
+      feedback = values.feedback as string;
+    } catch {
+      return; // 表单校验未通过
+    }
+    try {
+      await completeMutation.mutateAsync({ id: app.id, round: completeRound, result, feedback });
+      message.success('面试评价已提交');
+      setCompleteOpen(false);
+    } catch (err) {
+      message.error(errorMessage(err, '提交面试评价失败'));
+    }
+  };
+
   // 嵌套数组防御性归一化：后端契约保证 []，但旧缓存/异常数据可能为 null
   const strengths = md?.strengths ?? [];
   const gaps = md?.gaps ?? [];
@@ -302,6 +403,72 @@ export function MatchDrawer({ open, application, onClose, onStageChange }: Match
                 options={stageOptionsFor(app.stage)}
                 onChange={handleStageSelect}
               />
+            </Space>
+          </section>
+
+          <Divider style={{ margin: 0 }} />
+
+          {/* ===== 面试安排（两轮：HR 初面 / 部门负责人面） ===== */}
+          <section>
+            <Typography.Title level={5}>面试安排</Typography.Title>
+            <Space direction="vertical" size={8} style={{ width: '100%' }}>
+              {(Object.keys(INTERVIEW_ROUND_LABELS) as InterviewRound[]).map((round) => {
+                const iv = interviews.find((i) => i.round === round);
+                return (
+                  <Card key={round} size="small" title={INTERVIEW_ROUND_LABELS[round]}>
+                    {!iv ? (
+                      <Typography.Text type="secondary">尚未安排</Typography.Text>
+                    ) : (
+                      <Space direction="vertical" size={4} style={{ width: '100%' }}>
+                        <Space wrap>
+                          <Typography.Text>
+                            面试时间：{formatDateTime(iv.scheduledAt)}
+                          </Typography.Text>
+                          <InterviewStatusTag interview={iv} />
+                        </Space>
+                        {iv.feedback && (
+                          <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+                            评价：{iv.feedback}
+                          </Typography.Paragraph>
+                        )}
+                        {iv.reviewedByName && (
+                          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                            评价人：{iv.reviewedByName}
+                            {iv.reviewedAt && ` · ${formatDateTime(iv.reviewedAt)}`}
+                          </Typography.Text>
+                        )}
+                      </Space>
+                    )}
+                  </Card>
+                );
+              })}
+            </Space>
+            <Space wrap style={{ marginTop: 12 }}>
+              {canScheduleHr && (
+                <Button type="primary" size="small" onClick={() => openSchedule('hr')}>
+                  安排 HR 面
+                </Button>
+              )}
+              {canCompleteHr && (
+                <Button type="primary" size="small" onClick={() => openComplete('hr')}>
+                  完成 HR 面评价
+                </Button>
+              )}
+              {canScheduleManager && (
+                <Button size="small" onClick={() => openSchedule('manager')}>
+                  安排负责人面
+                </Button>
+              )}
+              {canCompleteManager && (
+                <Button type="primary" size="small" onClick={() => openComplete('manager')}>
+                  完成负责人面评价
+                </Button>
+              )}
+              {canCreateOffer && (
+                <Button type="primary" size="small" onClick={() => setOfferCreateOpen(true)}>
+                  发起 Offer
+                </Button>
+              )}
             </Space>
           </section>
 
@@ -708,6 +875,87 @@ export function MatchDrawer({ open, application, onClose, onStageChange }: Match
           </Form.Item>
         </Form>
       </Modal>
+
+      {/* 安排面试弹窗（时间必填） */}
+      <Modal
+        title={`安排${scheduleRound ? INTERVIEW_ROUND_LABELS[scheduleRound] : ''}面试`}
+        open={scheduleOpen}
+        onOk={confirmSchedule}
+        onCancel={() => setScheduleOpen(false)}
+        okText="确认安排"
+        cancelText="取消"
+        confirmLoading={scheduleMutation.isPending}
+        destroyOnHidden
+      >
+        <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
+          {scheduleRound === 'hr'
+            ? '安排 HR 初面：确认时间后候选人将进入「HR 初面」阶段。'
+            : scheduleRound === 'manager'
+              ? '安排部门负责人面：需 HR 面已通过，确认时间后候选人将进入「部门负责人面」阶段。'
+              : ''}
+        </Typography.Paragraph>
+        <Form form={scheduleForm} layout="vertical">
+          <Form.Item
+            name="scheduledAt"
+            label="面试时间"
+            rules={[{ required: true, message: '请选择面试时间' }]}
+          >
+            <DatePicker
+              showTime
+              style={{ width: '100%' }}
+              placeholder="选择面试时间（必填）"
+              disabledDate={(d) => d.isBefore(new Date(), 'day')}
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* 完成面试弹窗（结论 + 评价必填） */}
+      <Modal
+        title={`完成${completeRound ? INTERVIEW_ROUND_LABELS[completeRound] : ''} · 面试评价`}
+        open={completeOpen}
+        onOk={confirmComplete}
+        onCancel={() => setCompleteOpen(false)}
+        okText="提交评价"
+        cancelText="取消"
+        confirmLoading={completeMutation.isPending}
+        destroyOnHidden
+      >
+        <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
+          填写「{app?.candidateName ?? ''}」的面试评价与结论
+          {completeRound === 'hr'
+            ? '：不通过将直接淘汰候选人。'
+            : completeRound === 'manager'
+              ? '：不通过将直接淘汰候选人；通过后可发起 Offer。'
+              : ''}
+        </Typography.Paragraph>
+        <Form form={completeForm} layout="vertical">
+          <Form.Item
+            name="result"
+            label="面试结论"
+            rules={[{ required: true, message: '请选择面试结论' }]}
+          >
+            <Radio.Group>
+              <Radio value="pass">通过</Radio>
+              <Radio value="fail">不通过</Radio>
+            </Radio.Group>
+          </Form.Item>
+          <Form.Item
+            name="feedback"
+            label="面试评价"
+            rules={[{ required: true, whitespace: true, message: '请填写面试评价' }]}
+          >
+            <Input.TextArea rows={4} placeholder="请填写面试评价（必填）" maxLength={1000} showCount />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* 发起 Offer 审批弹窗（负责人面通过后，与待办页共用） */}
+      <OfferCreateModal
+        open={offerCreateOpen}
+        application={app}
+        onClose={() => setOfferCreateOpen(false)}
+      />
     </Drawer>
   );
 }

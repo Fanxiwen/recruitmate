@@ -24,23 +24,29 @@
   → 通过（open，发布到外部端）/ 驳回（回 draft，需原因）
 ```
 
-## 三、候选人流程（8 阶段状态机）
+## 三、候选人流程（8 阶段状态机 + 面试实体）
 
-| 阶段 | 含义 | 谁操作 | 合法流转 |
-|---|---|---|---|
-| `new` | 新简历（待初筛） | HR | → screening / rejected |
-| `screening` | 初筛通过 | HR | → interview / rejected |
-| `interview` | HR 初面 | HR（记录评价） | → manager_interview / rejected |
-| `manager_interview` | 部门负责人面 | HR（记录评价） | → offer_pending / rejected |
-| `offer_pending` | Offer 审批中 | 部门负责人/管理员审批 | → offered（通过）/ manager_interview（驳回） |
-| `offered` | 已发 Offer | HR | → hired / rejected |
-| `hired` | 已入职 | HR | 终态 |
-| `rejected` | 已淘汰 | HR | → new（误杀恢复，需原因） |
+| 阶段 | 含义 | 推进方式 |
+|---|---|---|
+| `new` | 新简历（待初筛） | HR 初筛 → screening / rejected |
+| `screening` | 初筛通过 | HR **安排 HR 面（含面试时间）** → interview |
+| `interview` | HR 面 | HR **完成面试：评价必填 + 通过/不通过**；通过后安排负责人面 |
+| `manager_interview` | 部门负责人面 | HR 安排时间（须 HR 面通过）；负责人**完成面试：评价 + 结论** |
+| `offer_pending` | Offer 审批中 | HR 发起（须负责人面通过）→ 负责人/管理员审批定薪 |
+| `offered` | 已发 Offer | → hired / rejected |
+| `hired` | 已入职 | 终态（满编自动关闭岗位） |
+| `rejected` | 已淘汰 | 面试不通过自动淘汰（留原因）；误杀可恢复 new |
 
-约束：
-- **面试分两轮**：HR 初面 → 部门负责人面，不能跳轮次；
-- 转 `rejected` **必须填淘汰原因**；进面试轮次建议填评价（记录在时间线）；
-- Offer 审批：HR/管理员发起（建议薪资、入职时间、备注），审批人=**本部门负责人或管理员，且不能是发起人**；**审批通过时由部门负责人确定最终薪资（必填）**；驳回回退 `manager_interview` 并记录原因。
+**面试实体（interviews 表，每轮一条）**：轮次（hr/manager）、**准确面试时间**（安排时必填，可改期）、状态（scheduled/completed）、**结论（通过/不通过）**、**评价（必填）**、评价人与时间。阶段推进由面试动作驱动，不可手动跳转。
+
+**角色分工**：
+- HR：初筛、安排两轮面试、完成 HR 面评价、发起 Offer；
+- 部门负责人：完成负责人面评价（确认通过与否）、审批岗位发布与 Offer 并定薪；
+- 管理员：全部兜底。
+
+**候选人中心与我的待办**：
+- 候选人中心：全局按候选人跟进，支持阶段/部门/岗位/关键词筛选，展示两轮面试时间与结论；
+- 我的待办（按角色）：HR——待初筛/待安排HR面/HR面待评价/待安排负责人面/待发起Offer；部门负责人——岗位审批/负责人面待评价/Offer审批。
 
 ## 四、Offer 审批链（薪资由部门负责人决定）
 

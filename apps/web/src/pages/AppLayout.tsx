@@ -4,10 +4,11 @@ import {
   BarChartOutlined,
   LogoutOutlined,
   RocketFilled,
+  TeamOutlined,
 } from '@ant-design/icons';
 import { Badge, Button, Layout, Menu, Popconfirm, Space, Tag, message } from 'antd';
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { useApprovalOffers, usePendingApplications, usePendingCount } from '../hooks/useApi';
+import { useApprovalOffers, useInterviewTodos, usePendingCount } from '../hooks/useApi';
 import { ROLE_LABELS } from '../lib/format';
 import { useAuthStore } from '../stores/auth';
 
@@ -32,36 +33,48 @@ export function AppLayout() {
   const user = useAuthStore((s) => s.user);
   const { data: pending } = usePendingCount();
   const { data: pendingOffers } = useApprovalOffers(1, 1);
-  const { data: pendingApps } = usePendingApplications(1, 1);
+  const { data: interviewTodos } = useInterviewTodos();
 
   // 认证守卫：无 token 或用户信息时回登录页
   if (!token || !user) return <Navigate to="/login" replace />;
 
-  const pendingCount = (pending?.total ?? 0) + (pendingOffers?.total ?? 0);
-  const pendingAppCount = pendingApps?.total ?? 0;
+  /** 岗位待批 + Offer 待批 + 面试待办合计（我的待办徽标） */
+  const approvalsCount =
+    (pending?.total ?? 0) + (pendingOffers?.total ?? 0) + (interviewTodos?.items?.length ?? 0);
+  /** 待初筛数（候选人中心徽标） */
+  const screenCount =
+    interviewTodos?.items?.filter((item) => item.kind === 'screen').length ?? 0;
 
   const handleLogout = () => {
     useAuthStore.getState().logout();
     navigate('/login', { replace: true });
   };
 
-  // 根据路径高亮菜单（/jobs 与 /jobs?status=pending 都归属「岗位管理」）
-  const selectedKeys = location.pathname.startsWith('/approvals')
-    ? ['/approvals']
-    : location.pathname.startsWith('/jobs')
-      ? ['/jobs']
-      : [];
+  // 根据路径高亮菜单
+  const selectedKeys = location.pathname.startsWith('/candidates')
+    ? ['/candidates']
+    : location.pathname.startsWith('/approvals')
+      ? ['/approvals']
+      : location.pathname.startsWith('/jobs')
+        ? ['/jobs']
+        : [];
 
   const menuItems = [
     {
-      key: '/jobs',
-      icon: <AppstoreOutlined />,
+      key: '/candidates',
+      icon: <TeamOutlined />,
       label: (
         <Space size={6}>
-          岗位管理
-          {pendingAppCount > 0 && <Badge count={pendingAppCount} size="small" />}
+          候选人
+          {screenCount > 0 && <Badge count={screenCount} size="small" />}
         </Space>
       ),
+      onClick: () => navigate('/candidates'),
+    },
+    {
+      key: '/jobs',
+      icon: <AppstoreOutlined />,
+      label: '岗位管理',
       onClick: () => navigate('/jobs'),
     },
     {
@@ -69,8 +82,8 @@ export function AppLayout() {
       icon: <AuditOutlined />,
       label: (
         <Space size={6}>
-          审批中心
-          {pendingCount > 0 && <Badge count={pendingCount} size="small" />}
+          我的待办
+          {approvalsCount > 0 && <Badge count={approvalsCount} size="small" />}
         </Space>
       ),
       onClick: () => navigate('/approvals'),

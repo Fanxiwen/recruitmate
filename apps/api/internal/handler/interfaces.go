@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"time"
 
 	"github.com/Fanxiwen/recruitmate/apps/api/internal/domain"
 	"github.com/Fanxiwen/recruitmate/apps/api/internal/repo"
@@ -65,4 +66,11 @@ type InternalJobService interface {
 	ListOfferApprovals(ctx context.Context, actor *service.Actor, page, pageSize int) (*domain.Paginated[domain.ApprovalOfferItem], error)
 	// 待处理（新简历）
 	ListPendingApplications(ctx context.Context, actor *service.Actor, page, pageSize int) (*domain.Paginated[domain.ApplicationInternal], error)
+	// 候选人中心
+	ListCandidates(ctx context.Context, actor *service.Actor, f repo.CandidateListFilter, page, pageSize int) (*domain.Paginated[domain.ApplicationInternal], error)
+	// 我的待办（面试类）
+	ListInterviewTodos(ctx context.Context, actor *service.Actor) ([]domain.InterviewTodoItem, error)
+	// 面试实体
+	ScheduleInterview(ctx context.Context, actor *service.Actor, appID, round string, scheduledAt time.Time) (*domain.Interview, error)
+	CompleteInterview(ctx context.Context, actor *service.Actor, appID, round, result, feedback string) (*domain.ApplicationInternal, error)
 }

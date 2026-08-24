@@ -11,10 +11,8 @@ func TestCanTransition(t *testing.T) {
 		// 合法流转
 		{StageNew, StageScreening, true},
 		{StageNew, StageRejected, true},
-		{StageScreening, StageInterview, true},
-		{StageInterview, StageManagerInterview, true}, // HR 初面 → 部门负责人面
+		{StageScreening, StageRejected, true},
 		{StageInterview, StageRejected, true},
-		{StageManagerInterview, StageOfferPending, true},
 		{StageManagerInterview, StageRejected, true},
 		{StageOfferPending, StageOffered, true},
 		{StageOfferPending, StageManagerInterview, true}, // 驳回回退部门负责人面
@@ -23,17 +21,19 @@ func TestCanTransition(t *testing.T) {
 		{StageRejected, StageNew, true}, // 误杀恢复
 		// 同阶段幂等
 		{StageNew, StageNew, true},
-		// 非法跳步
+		// 非法：面试阶段由「安排面试/完成面试」动作驱动，不可手动流转
 		{StageNew, StageInterview, false},
 		{StageNew, StageManagerInterview, false},
 		{StageNew, StageOfferPending, false},
 		{StageNew, StageOffered, false},
 		{StageNew, StageHired, false},
-		{StageScreening, StageManagerInterview, false}, // 不能跳过 HR 初面
-		{StageInterview, StageOfferPending, false},     // 必须经过部门负责人面
+		{StageScreening, StageInterview, false},        // 须安排 HR 面
+		{StageScreening, StageManagerInterview, false}, // 不能跳过 HR 面
+		{StageInterview, StageManagerInterview, false}, // 须 HR 面通过后安排负责人面
 		{StageInterview, StageOffered, false},
 		{StageInterview, StageHired, false},
-		{StageManagerInterview, StageOffered, false}, // offer_pending 经审批接口流转
+		{StageManagerInterview, StageOfferPending, false}, // 须负责人面通过后发起 Offer
+		{StageManagerInterview, StageOffered, false},
 		{StageOfferPending, StageNew, false},
 		{StageHired, StageNew, false},
 		{StageHired, StageRejected, false},

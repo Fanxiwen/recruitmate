@@ -76,6 +76,11 @@ func New(d Deps) *gin.Engine {
 			authGroup.POST("/applications/:id/offer", d.InternalApps.Offer)
 			authGroup.POST("/applications/:id/offer/approve", d.InternalApps.OfferApprove)
 			authGroup.POST("/applications/:id/offer/reject", d.InternalApps.OfferReject)
+			authGroup.POST("/applications/:id/interviews", d.InternalApps.ScheduleInterview)
+			authGroup.POST("/applications/:id/interviews/:round/complete", d.InternalApps.CompleteInterview)
+
+			authGroup.GET("/candidates", d.InternalApps.Candidates)
+			authGroup.GET("/todos/interviews", d.InternalApps.Todos)
 
 			authGroup.GET("/approvals/offers", d.Approvals.ListOffers)
 		}

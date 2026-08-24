@@ -71,16 +71,19 @@ export const STAGE_LABELS: Record<ApplicationStage, string> = {
 
 /**
  * 阶段流转状态机（服务端强制，前端据此禁用非法流转）。
- * 面试分两轮：HR 初面 → 部门负责人面；Offer 由 HR 发起，
- * 部门负责人审批并确定最终薪资；驳回回退部门负责人面。
+ * 面试阶段推进由「安排面试/完成面试」动作驱动，不可手动跳转：
+ *  - screening→interview：安排 HR 面（含面试时间）
+ *  - interview→manager_interview：HR 面通过后安排负责人面（含面试时间）
+ *  - manager_interview→offer_pending：负责人面通过后由 HR 发起 Offer
+ *  - offer_pending→offered/manager_interview：Offer 审批通过/驳回
  * rejected → new 为「误杀恢复」，仅限 HR 手动执行并填写原因。
  */
 export const STAGE_TRANSITIONS: Record<ApplicationStage, ApplicationStage[]> = {
   new: ['screening', 'rejected'],
-  screening: ['interview', 'rejected'],
-  interview: ['manager_interview', 'rejected'],
-  manager_interview: ['offer_pending', 'rejected'],
-  offer_pending: ['offered', 'manager_interview'], // 通过 Offer 审批接口流转
+  screening: ['rejected'],
+  interview: ['rejected'],
+  manager_interview: ['rejected'],
+  offer_pending: ['offered', 'manager_interview'],
   offered: ['hired', 'rejected'],
   hired: [],
   rejected: ['new'],
@@ -237,6 +240,8 @@ export interface ApplicationInternal {
   offer?: Offer | null;
   /** 流转时间线（详情接口返回） */
   events?: ApplicationEvent[];
+  /** 面试记录（详情/候选人中心返回，按轮次 hr / manager） */
+  interviews?: Interview[];
 }
 
 /** Offer 审批单 */
@@ -257,7 +262,14 @@ export interface ApplicationEvent {
   id: number;
   fromStage: string;
   toStage: string;
-  action: 'stage_change' | 'offer_request' | 'offer_approve' | 'offer_reject' | 'feedback';
+  action:
+    | 'stage_change'
+    | 'offer_request'
+    | 'offer_approve'
+    | 'offer_reject'
+    | 'feedback'
+    | 'interview_schedule'
+    | 'interview_complete';
   actorName: string;
   reason: string;
   createdAt: ISODate;
@@ -367,4 +379,59 @@ export interface OfferDecisionRequest {
 export interface ApprovalOfferItem {
   application: ApplicationInternal;
   offer: Offer;
+}
+
+/** 面试轮次 */
+export type InterviewRound = 'hr' | 'manager';
+export type InterviewResult = 'pending' | 'pass' | 'fail';
+
+/** 一轮面试（含准确面试时间、评价与结论） */
+export interface Interview {
+  id: ID;
+  round: InterviewRound;
+  /** 面试时间（安排时必填） */
+  scheduledAt?: ISODate;
+  status: 'scheduled' | 'completed' | 'cancelled';
+  result: InterviewResult;
+  feedback: string;
+  reviewedByName: string;
+  reviewedAt?: ISODate;
+}
+
+/** 安排面试请求 */
+export interface ScheduleInterviewRequest {
+  round: InterviewRound;
+  /** ISO 时间，必填 */
+  scheduledAt: string;
+}
+
+/** 完成面试请求（评价必填） */
+export interface CompleteInterviewRequest {
+  result: 'pass' | 'fail';
+  feedback: string;
+}
+
+/** 候选人中心查询参数 */
+export interface CandidateListQuery {
+  stage?: ApplicationStage | '';
+  departmentId?: ID;
+  jobId?: ID;
+  q?: string;
+  sort?: 'score_desc' | 'newest';
+  page?: number;
+  pageSize?: number;
+}
+
+/** 我的待办：面试类待办条目 */
+export interface InterviewTodoItem {
+  /** screen 待初筛 / schedule_hr 待安排HR面 / review_hr HR面待评价 / schedule_manager 待安排负责人面 / review_manager 负责人面待评价 / offer_ready 待发起Offer */
+  kind:
+    | 'screen'
+    | 'schedule_hr'
+    | 'review_hr'
+    | 'schedule_manager'
+    | 'review_manager'
+    | 'offer_ready';
+  application: ApplicationInternal;
+  interview?: Interview;
 }

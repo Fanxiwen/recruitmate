@@ -11,7 +11,11 @@ import type {
   ApplyRequest,
   ApprovalOfferItem,
   BatchActionRequest,
+  CandidateListQuery,
   Department,
+  Interview,
+  InterviewRound,
+  InterviewTodoItem,
   JobListQuery,
   JobPosting,
   JobPostingInput,
@@ -224,6 +228,42 @@ export class ApiClient {
   /** 审批中心：Offer 待审批列表 */
   listApprovalOffers(page = 1, pageSize = 20): Promise<Paginated<ApprovalOfferItem>> {
     return this.request<Paginated<ApprovalOfferItem>>(`/internal/approvals/offers?page=${page}&pageSize=${pageSize}`);
+  }
+
+  /** 候选人中心：全局候选人列表（跨岗位，按阶段/部门/岗位/关键词筛选，30s 轮询由调用方控制） */
+  listCandidates(query: CandidateListQuery = {}): Promise<Paginated<ApplicationInternal>> {
+    const qs = new URLSearchParams();
+    for (const [k, v] of Object.entries(query)) {
+      if (v !== undefined && v !== '') qs.set(k, String(v));
+    }
+    const suffix = qs.size > 0 ? `?${qs.toString()}` : '';
+    return this.request<Paginated<ApplicationInternal>>(`/internal/candidates${suffix}`);
+  }
+
+  /** 我的待办：面试类待办（后端按角色返回：HR 收 screen/schedule_hr/review_hr/schedule_manager/offer_ready，部门负责人收 review_manager） */
+  listInterviewTodos(): Promise<{ items: InterviewTodoItem[] }> {
+    return this.request<{ items: InterviewTodoItem[] }>('/internal/todos/interviews');
+  }
+
+  /** 安排一轮面试（scheduledAt 为 RFC3339 ISO 时间，必填；后端据此推进阶段） */
+  scheduleInterview(id: string, round: InterviewRound, scheduledAt: string): Promise<Interview> {
+    return this.request<Interview>(`/internal/applications/${id}/interviews`, {
+      method: 'POST',
+      body: JSON.stringify({ round, scheduledAt }),
+    });
+  }
+
+  /** 完成一轮面试（feedback 必填；结论 pass/fail，不通过时后端自动转 rejected） */
+  completeInterview(
+    id: string,
+    round: InterviewRound,
+    result: 'pass' | 'fail',
+    feedback: string,
+  ): Promise<ApplicationInternal> {
+    return this.request<ApplicationInternal>(`/internal/applications/${id}/interviews/${round}/complete`, {
+      method: 'POST',
+      body: JSON.stringify({ result, feedback }),
+    });
   }
 
   /** 待处理（新简历）列表：有人投递后 HR 在此集中初筛 */

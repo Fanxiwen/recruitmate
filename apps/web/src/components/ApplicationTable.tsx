@@ -4,10 +4,11 @@ import { Button, Form, Input, Modal, Progress, Select, Space, Table, Tag, Typogr
 import type { ColumnsType } from 'antd/es/table';
 import { useMemo, useRef, useState } from 'react';
 import type { Key } from 'react';
-import { errorMessage, useCreateOffer, useSetStage } from '../hooks/useApi';
+import { errorMessage, useSetStage } from '../hooks/useApi';
 import { formatDateTime } from '../lib/format';
 import { stageOptionsFor } from '../lib/stages';
 import { useAuthStore } from '../stores/auth';
+import { OfferCreateModal } from './OfferCreateModal';
 
 interface ApplicationTableProps {
   data: ApplicationInternal[] | undefined;
@@ -50,7 +51,6 @@ export function ApplicationTable({
   const user = useAuthStore((s) => s.user);
 
   const setStageMutation = useSetStage();
-  const createOfferMutation = useCreateOffer();
 
   // ===== 淘汰弹窗 =====
   const [rejectOpen, setRejectOpen] = useState(false);
@@ -60,7 +60,6 @@ export function ApplicationTable({
   // ===== 发起 Offer 弹窗 =====
   const [offerOpen, setOfferOpen] = useState(false);
   const [offerTarget, setOfferTarget] = useState<ApplicationInternal | null>(null);
-  const [offerForm] = Form.useForm();
 
   const rows = useMemo(() => data ?? [], [data]);
 
@@ -101,25 +100,7 @@ export function ApplicationTable({
 
   const openOffer = (app: ApplicationInternal) => {
     setOfferTarget(app);
-    offerForm.resetFields();
     setOfferOpen(true);
-  };
-
-  const confirmOffer = async () => {
-    if (!offerTarget) return;
-    let values: { salary?: string; joinDate?: string; note?: string } = {};
-    try {
-      values = (await offerForm.validateFields()) as { salary?: string; joinDate?: string; note?: string };
-    } catch {
-      return; // 表单校验未通过
-    }
-    try {
-      await createOfferMutation.mutateAsync({ id: offerTarget.id, body: values });
-      message.success('Offer 审批已提交');
-      setOfferOpen(false);
-    } catch (err) {
-      message.error(errorMessage(err, '发起 Offer 失败'));
-    }
   };
 
   const columns: ColumnsType<ApplicationInternal> = [
@@ -349,29 +330,15 @@ export function ApplicationTable({
         </Form>
       </Modal>
 
-      {/* 发起 Offer 审批弹窗 */}
-      <Modal
-        title={`发起 Offer 审批 · ${offerTarget?.candidateName ?? ''}`}
+      {/* 发起 Offer 审批弹窗（与我的待办 / 候选人抽屉共用） */}
+      <OfferCreateModal
         open={offerOpen}
-        onOk={confirmOffer}
-        onCancel={() => setOfferOpen(false)}
-        okText="提交审批"
-        cancelText="取消"
-        confirmLoading={createOfferMutation.isPending}
-        destroyOnHidden
-      >
-        <Form form={offerForm} layout="vertical">
-          <Form.Item name="salary" label="建议薪资（千元/月）" extra="最终薪资由部门负责人审批时确定">
-            <Input placeholder="如 20-25（可选）" />
-          </Form.Item>
-          <Form.Item name="joinDate" label="入职时间">
-            <Input placeholder="如 2025-03-01（可选）" />
-          </Form.Item>
-          <Form.Item name="note" label="备注">
-            <Input.TextArea rows={3} placeholder="Offer 补充说明（可选）" maxLength={500} showCount />
-          </Form.Item>
-        </Form>
-      </Modal>
+        application={offerTarget}
+        onClose={() => {
+          setOfferOpen(false);
+          setOfferTarget(null);
+        }}
+      />
     </>
   );
 }

@@ -5,9 +5,11 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"time"
 
 	"github.com/Fanxiwen/recruitmate/apps/api/internal/domain"
 	"github.com/Fanxiwen/recruitmate/apps/api/internal/file"
+	"github.com/Fanxiwen/recruitmate/apps/api/internal/repo"
 	"github.com/gin-gonic/gin"
 )
 
@@ -143,4 +145,76 @@ func (h *InternalApplicationHandler) Pending(c *gin.Context) {
 		return
 	}
 	respondJSON(c, http.StatusOK, result)
+}
+
+// Candidates GET /api/v1/internal/candidates —— 候选人中心全局列表。
+func (h *InternalApplicationHandler) Candidates(c *gin.Context) {
+	actor := actorFromContext(c)
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "20"))
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+	var deptID *string
+	if v := c.Query("departmentId"); v != "" {
+		deptID = &v
+	}
+	result, err := h.Jobs.ListCandidates(c.Request.Context(), actor, repo.CandidateListFilter{
+		Stage:        c.Query("stage"),
+		DepartmentID: deptID,
+		JobID:        c.Query("jobId"),
+		Q:            c.Query("q"),
+		Sort:         c.DefaultQuery("sort", "score_desc"),
+	}, page, pageSize)
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	respondJSON(c, http.StatusOK, result)
+}
+
+// Todos GET /api/v1/internal/todos/interviews —— 我的待办（面试类，按角色）。
+func (h *InternalApplicationHandler) Todos(c *gin.Context) {
+	items, err := h.Jobs.ListInterviewTodos(c.Request.Context(), actorFromContext(c))
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	respondJSON(c, http.StatusOK, gin.H{"items": items})
+}
+
+// ScheduleInterview POST /api/v1/internal/applications/:id/interviews —— 安排一轮面试（时间必填）。
+func (h *InternalApplicationHandler) ScheduleInterview(c *gin.Context) {
+	var req domain.ScheduleInterviewRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	scheduledAt, err := time.Parse(time.RFC3339, req.ScheduledAt)
+	if err != nil {
+		respondError(c, domain.NewError(400, domain.CodeBadRequest, "面试时间格式不正确"))
+		return
+	}
+	iv, err := h.Jobs.ScheduleInterview(c.Request.Context(), actorFromContext(c), c.Param("id"), req.Round, scheduledAt)
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	respondJSON(c, http.StatusOK, iv)
+}
+
+// CompleteInterview POST /api/v1/internal/applications/:id/interviews/:round/complete —— 完成一轮面试（评价+结论）。
+func (h *InternalApplicationHandler) CompleteInterview(c *gin.Context) {
+	var req domain.CompleteInterviewRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	app, err := h.Jobs.CompleteInterview(c.Request.Context(), actorFromContext(c), c.Param("id"), c.Param("round"), req.Result, req.Feedback)
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	respondJSON(c, http.StatusOK, app)
 }
