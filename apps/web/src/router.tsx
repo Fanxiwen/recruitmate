@@ -4,6 +4,7 @@ import { JobDetailPage } from './pages/JobDetailPage';
 import { JobFormPage } from './pages/JobFormPage';
 import { JobsPage } from './pages/JobsPage';
 import { LoginPage } from './pages/LoginPage';
+import { RouteErrorPage } from './pages/RouteErrorPage';
 
 /**
  * 内部端路由：
@@ -13,12 +14,14 @@ import { LoginPage } from './pages/LoginPage';
  *  - /jobs/:id         岗位详情（候选人 / 概览）
  *  - /jobs/:id/edit    编辑岗位
  * 其余路径由 AppLayout 做认证守卫（未登录重定向 /login）。
+ * 渲染异常统一由 errorElement 兜底。
  */
 export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
   {
     path: '/',
     element: <AppLayout />,
+    errorElement: <RouteErrorPage />,
     children: [
       { index: true, element: <Navigate to="/jobs" replace /> },
       { path: 'jobs', element: <JobsPage /> },

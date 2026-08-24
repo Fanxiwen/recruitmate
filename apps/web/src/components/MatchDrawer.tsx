@@ -105,6 +105,14 @@ export function MatchDrawer({ open, application, onClose, onStageChange }: Match
   const md = app?.matchDetail;
   const pr = app?.parsedResume;
 
+  // 嵌套数组防御性归一化：后端契约保证 []，但旧缓存/异常数据可能为 null
+  const strengths = md?.strengths ?? [];
+  const gaps = md?.gaps ?? [];
+  const hardChecks = md?.hardChecks ?? [];
+  const education = pr?.education ?? [];
+  const workExperience = pr?.workExperience ?? [];
+  const skills = pr?.skills ?? [];
+
   return (
     <Drawer
       title={app ? `${app.candidateName} · 候选人详情` : '候选人详情'}
@@ -191,7 +199,7 @@ export function MatchDrawer({ open, application, onClose, onStageChange }: Match
                   {md.llmScore != null && <ScoreBar label="LLM 评委分" value={md.llmScore} color="#13c2c2" />}
                 </Space>
 
-                {md.strengths.length > 0 && (
+                {strengths.length > 0 && (
                   <List
                     size="small"
                     header={
@@ -199,7 +207,7 @@ export function MatchDrawer({ open, application, onClose, onStageChange }: Match
                         匹配优势
                       </Typography.Text>
                     }
-                    dataSource={md.strengths}
+                    dataSource={strengths}
                     renderItem={(item) => (
                       <List.Item style={{ border: 'none', padding: '2px 0' }}>
                         <Space>
@@ -211,7 +219,7 @@ export function MatchDrawer({ open, application, onClose, onStageChange }: Match
                   />
                 )}
 
-                {md.gaps.length > 0 && (
+                {gaps.length > 0 && (
                   <List
                     size="small"
                     header={
@@ -219,7 +227,7 @@ export function MatchDrawer({ open, application, onClose, onStageChange }: Match
                         待改进点
                       </Typography.Text>
                     }
-                    dataSource={md.gaps}
+                    dataSource={gaps}
                     renderItem={(item) => (
                       <List.Item style={{ border: 'none', padding: '2px 0' }}>
                         <Space>
@@ -247,12 +255,12 @@ export function MatchDrawer({ open, application, onClose, onStageChange }: Match
                   </div>
                 )}
 
-                {md.hardChecks.length > 0 && (
+                {hardChecks.length > 0 && (
                   <Table<HardCheck>
                     size="small"
                     rowKey="name"
                     columns={HARD_CHECK_COLUMNS}
-                    dataSource={md.hardChecks}
+                    dataSource={hardChecks}
                     pagination={false}
                   />
                 )}
@@ -274,12 +282,12 @@ export function MatchDrawer({ open, application, onClose, onStageChange }: Match
               />
             ) : (
               <Space direction="vertical" size={16} style={{ width: '100%' }}>
-                {pr.education.length > 0 && (
+                {education.length > 0 && (
                   <div>
                     <Typography.Text strong>教育经历</Typography.Text>
                     <Timeline
                       style={{ marginTop: 8 }}
-                      items={pr.education.map((edu, i) => ({
+                      items={education.map((edu, i) => ({
                         key: i,
                         children: (
                           <span>
@@ -294,13 +302,13 @@ export function MatchDrawer({ open, application, onClose, onStageChange }: Match
                   </div>
                 )}
 
-                {pr.workExperience.length > 0 && (
+                {workExperience.length > 0 && (
                   <div>
                     <Typography.Text strong>工作经历</Typography.Text>
                     <List
                       size="small"
                       style={{ marginTop: 4 }}
-                      dataSource={pr.workExperience}
+                      dataSource={workExperience}
                       renderItem={(exp, i) => (
                         <List.Item key={i} style={{ paddingLeft: 0 }}>
                           <Space direction="vertical" size={0} style={{ width: '100%' }}>
@@ -326,12 +334,12 @@ export function MatchDrawer({ open, application, onClose, onStageChange }: Match
                   </div>
                 )}
 
-                {pr.skills.length > 0 && (
+                {skills.length > 0 && (
                   <div>
                     <Typography.Text strong>技能</Typography.Text>
                     <div style={{ marginTop: 8 }}>
                       <Space size={[4, 4]} wrap>
-                        {pr.skills.map((s) => (
+                        {skills.map((s) => (
                           <Tag key={s} color="blue">
                             {s}
                           </Tag>

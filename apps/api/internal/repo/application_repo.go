@@ -145,16 +145,35 @@ func scanApplicationInternalDetail(row pgx.Row) (*domain.ApplicationInternal, er
 }
 
 // fillApplicationJSON 解析 parsed_resume / match_detail 两列 JSON。
+// 解析后统一做空数组归一化（null → []），保证前端契约：嵌套数组永远不是 null。
 func fillApplicationJSON(a *domain.ApplicationInternal, parsed, detail []byte) {
 	if len(parsed) > 0 && string(parsed) != "null" {
 		var p domain.ParsedResume
 		if err := json.Unmarshal(parsed, &p); err == nil {
+			if p.Skills == nil {
+				p.Skills = []string{}
+			}
+			if p.Education == nil {
+				p.Education = []domain.EducationItem{}
+			}
+			if p.WorkExperience == nil {
+				p.WorkExperience = []domain.WorkExperienceItem{}
+			}
 			a.ParsedResume = &p
 		}
 	}
 	if len(detail) > 0 && string(detail) != "null" {
 		var m domain.MatchDetail
 		if err := json.Unmarshal(detail, &m); err == nil {
+			if m.Strengths == nil {
+				m.Strengths = []string{}
+			}
+			if m.Gaps == nil {
+				m.Gaps = []string{}
+			}
+			if m.HardChecks == nil {
+				m.HardChecks = []domain.HardCheck{}
+			}
 			a.MatchDetail = &m
 		}
 	}

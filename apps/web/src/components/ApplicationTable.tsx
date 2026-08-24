@@ -106,7 +106,7 @@ export function ApplicationTable({
         if (app.parsedResume == null) {
           return app.parseFailed ? <Tag color="red">解析失败</Tag> : <Tag color="processing">解析中…</Tag>;
         }
-        const skills = app.parsedResume.skills ?? [];
+        const skills = app.parsedResume?.skills ?? [];
         if (skills.length === 0) return <Typography.Text type="secondary">—</Typography.Text>;
         return (
           <Space size={[4, 4]} wrap>
