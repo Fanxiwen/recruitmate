@@ -15,19 +15,25 @@ import { RouteErrorPage } from './pages/RouteErrorPage';
  *  - /jobs/:id/edit    编辑岗位
  * 其余路径由 AppLayout 做认证守卫（未登录重定向 /login）。
  * 渲染异常统一由 errorElement 兜底。
+ *
+ * 部署在子路径（如 https://域名/hr/）时，构建期设置 VITE_BASE_PATH=/hr，
+ * 此处 basename 与 vite base 保持一致。
  */
-export const router = createBrowserRouter([
-  { path: '/login', element: <LoginPage /> },
-  {
-    path: '/',
-    element: <AppLayout />,
-    errorElement: <RouteErrorPage />,
-    children: [
-      { index: true, element: <Navigate to="/jobs" replace /> },
-      { path: 'jobs', element: <JobsPage /> },
-      { path: 'jobs/new', element: <JobFormPage /> },
-      { path: 'jobs/:id', element: <JobDetailPage /> },
-      { path: 'jobs/:id/edit', element: <JobFormPage /> },
-    ],
-  },
-]);
+export const router = createBrowserRouter(
+  [
+    { path: '/login', element: <LoginPage /> },
+    {
+      path: '/',
+      element: <AppLayout />,
+      errorElement: <RouteErrorPage />,
+      children: [
+        { index: true, element: <Navigate to="/jobs" replace /> },
+        { path: 'jobs', element: <JobsPage /> },
+        { path: 'jobs/new', element: <JobFormPage /> },
+        { path: 'jobs/:id', element: <JobDetailPage /> },
+        { path: 'jobs/:id/edit', element: <JobFormPage /> },
+      ],
+    },
+  ],
+  { basename: import.meta.env.VITE_BASE_PATH ?? '/' },
+);

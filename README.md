@@ -35,6 +35,8 @@ AI 驱动的内部招聘平台：HR/部门负责人在内部端发布岗位、�
 
 详细设计见 [docs/technical-design.md](docs/technical-design.md)。
 
+生产/测试环境部署（单域名单证书 + Nginx 路径分流）见 [docs/deployment.md](docs/deployment.md)。
+
 ## 快速开始
 
 ### 前置要求
