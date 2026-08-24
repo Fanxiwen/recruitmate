@@ -69,10 +69,10 @@ func (p *Processor) HandleResumeProcess(ctx context.Context, t *asynq.Task) erro
 		text = data.ResumeText
 	}
 
-	// 2. LLM 结构化解析（rescore 且已有 parsed_resume 时跳过解析步骤）
+	// 2. LLM 结构化解析（无解析结果或此前解析失败落库的空壳时重试）
 	parsed := data.ParsedResume
 	parseFailed := false
-	if parsed == nil {
+	if parsed == nil || parsedIsEmpty(parsed) {
 		parsed, err = p.parseResume(ctx, text)
 		if err != nil {
 			parseFailed = true
@@ -261,6 +261,17 @@ func (p *Processor) parseResume(ctx context.Context, text string) (*domain.Parse
 		out.WorkExperience = []domain.WorkExperienceItem{}
 	}
 	return &out, nil
+}
+
+// parsedIsEmpty 判断结构化简历是否为「空壳」（解析失败时的落库形态），
+// 空壳需要在下一次处理时重新解析。
+func parsedIsEmpty(p *domain.ParsedResume) bool {
+	if p == nil {
+		return true
+	}
+	return p.Name == "" && p.Email == "" && p.Phone == "" &&
+		p.YearsOfExperience == 0 && len(p.Skills) == 0 &&
+		len(p.Education) == 0 && len(p.WorkExperience) == 0 && p.Summary == ""
 }
 
 // judgeResult LLM 评委输出。

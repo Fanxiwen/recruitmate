@@ -14,6 +14,8 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /server ./cm
  && CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /seed ./cmd/seed
 
 FROM alpine:3.20
+# poppler-utils 提供 pdftotext：中文简历 PDF 文本提取（pdfcpu 仅作回退）
+RUN apk add --no-cache poppler-utils
 RUN adduser -D -u 10001 app
 COPY --from=build /server /server
 COPY --from=build /seed /seed

@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -146,8 +148,32 @@ func ExtractText(filename string, data []byte) (string, error) {
 	}
 }
 
-// extractPDFText 使用 pdfcpu 提取 PDF 文本。
+// extractPDFText 提取 PDF 文本。
+// 优先使用 pdftotext（poppler-utils）：对中文/CJK 简历 PDF 支持最好；
+// pdftotext 不可用（如本地开发未安装）时回退 pdfcpu（纯 Go，仅适合简单 ASCII PDF）。
 func extractPDFText(data []byte) (string, error) {
+	if pdftotext, err := exec.LookPath("pdftotext"); err == nil {
+		tmp, err := os.CreateTemp("", "resume-*.pdf")
+		if err != nil {
+			return "", fmt.Errorf("pdf tmp: %w", err)
+		}
+		defer os.Remove(tmp.Name())
+		if _, err := tmp.Write(data); err != nil {
+			tmp.Close()
+			return "", fmt.Errorf("pdf tmp write: %w", err)
+		}
+		tmp.Close()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		out, err := exec.CommandContext(ctx, pdftotext, "-enc", "UTF-8", "-q", tmp.Name(), "-").Output()
+		if err != nil {
+			return "", fmt.Errorf("pdftotext: %w", err)
+		}
+		return string(out), nil
+	}
+
+	// 回退：pdfcpu（无外部依赖）
 	var buf bytes.Buffer
 	rs := bytes.NewReader(data)
 	err := api.ExtractContent(rs, nil, func(r io.Reader, _ int) error {
