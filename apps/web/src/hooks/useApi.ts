@@ -21,8 +21,12 @@ export async function request<T>(fn: () => Promise<T>): Promise<T> {
   } catch (err) {
     if (err instanceof ApiError && err.status === 401) {
       useAuthStore.getState().logout();
-      if (window.location.pathname !== '/login') {
-        window.location.assign('/login');
+      // 部署基路径感知：内部端可能部署在 /hr/ 子路径下，
+      // 硬编码 '/login' 会跳出到站点根（外部端）。
+      const base = (import.meta.env.VITE_BASE_PATH ?? '/').replace(/\/$/, '');
+      const loginPath = `${base}/login`;
+      if (window.location.pathname !== loginPath) {
+        window.location.assign(loginPath);
       }
     }
     throw err;
