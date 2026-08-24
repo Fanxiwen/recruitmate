@@ -152,7 +152,8 @@ func (s *JobStore) ListPublic(ctx context.Context, f JobListFilter, page, pageSi
 	}
 	defer rows.Close()
 
-	var out []domain.JobPosting
+	// 注意：必须用 make 初始化，空结果序列化为 [] 而非 null（前端契约）
+	out := make([]domain.JobPosting, 0)
 	for rows.Next() {
 		j, err := scanJob(rows)
 		if err != nil {
@@ -183,7 +184,8 @@ func (s *JobStore) ListInternal(ctx context.Context, status string, deptID *stri
 	}
 	defer rows.Close()
 
-	var out []domain.JobPosting
+	// 注意：必须用 make 初始化，空结果序列化为 [] 而非 null（前端契约）
+	out := make([]domain.JobPosting, 0)
 	for rows.Next() {
 		j, err := scanJobWithCount(rows)
 		if err != nil {

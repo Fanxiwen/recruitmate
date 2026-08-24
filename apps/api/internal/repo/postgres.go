@@ -113,7 +113,8 @@ func (s *DepartmentStore) List(ctx context.Context) ([]domain.Department, error)
 		return nil, err
 	}
 	defer rows.Close()
-	var out []domain.Department
+	// 空结果序列化为 [] 而非 null（前端契约）
+	out := make([]domain.Department, 0)
 	for rows.Next() {
 		var d domain.Department
 		if err := rows.Scan(&d.ID, &d.Name); err != nil {

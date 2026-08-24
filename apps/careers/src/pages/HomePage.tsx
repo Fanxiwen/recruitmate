@@ -160,7 +160,7 @@ export function HomePage() {
               重新加载
             </button>
           </div>
-        ) : jobsQuery.data.items.length === 0 ? (
+        ) : (jobsQuery.data.items ?? []).length === 0 ? (
           <div className="card mt-4 flex flex-col items-center px-6 py-14 text-center">
             <span className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 text-slate-400">
               <InboxIcon className="h-7 w-7" />
@@ -175,7 +175,7 @@ export function HomePage() {
           </div>
         ) : (
           <div className="mt-4 space-y-4">
-            {jobsQuery.data.items.map((job) => (
+            {(jobsQuery.data.items ?? []).map((job) => (
               <JobCard key={job.id} job={job} />
             ))}
           </div>

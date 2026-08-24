@@ -190,7 +190,8 @@ ORDER BY
 	}
 	defer rows.Close()
 
-	var out []domain.ApplicationInternal
+	// 空结果序列化为 [] 而非 null（前端契约）
+	out := make([]domain.ApplicationInternal, 0)
 	for rows.Next() {
 		a, err := scanApplicationInternal(rows)
 		if err != nil {
@@ -271,7 +272,7 @@ func (s *ApplicationStore) ListIDsByJob(ctx context.Context, jobID string) ([]st
 		return nil, err
 	}
 	defer rows.Close()
-	var out []string
+	out := make([]string, 0)
 	for rows.Next() {
 		var id string
 		if err := rows.Scan(&id); err != nil {
@@ -344,7 +345,7 @@ func (s *ApplicationStore) ListScoredByJob(ctx context.Context, jobID string) ([
 		return nil, err
 	}
 	defer rows.Close()
-	var out []ScoredApplication
+	out := make([]ScoredApplication, 0)
 	for rows.Next() {
 		var id string
 		var detail []byte
@@ -370,7 +371,7 @@ WHERE a.candidate_id = $1 ORDER BY a.submitted_at DESC`, candidateID)
 		return nil, err
 	}
 	defer rows.Close()
-	var out []domain.ApplicationPublic
+	out := make([]domain.ApplicationPublic, 0)
 	for rows.Next() {
 		var a domain.ApplicationPublic
 		var stage string

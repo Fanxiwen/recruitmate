@@ -335,11 +335,11 @@ export function JobDetailPage() {
         </Button>
       </Space>
 
-      {applications.data && applications.data.items.length === 0 ? (
+      {applications.data && (applications.data.items ?? []).length === 0 ? (
         <Empty description="暂无候选人，稍后将自动刷新" style={{ padding: '48px 0' }} />
       ) : (
         <ApplicationTable
-          data={applications.data?.items}
+          data={applications.data?.items ?? []}
           loading={applications.isLoading}
           total={applications.data?.total ?? 0}
           page={page}

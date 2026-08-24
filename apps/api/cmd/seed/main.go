@@ -146,11 +146,30 @@ func run() error {
 			MinYears:     1,
 		},
 	}
+	// 产品实习生 —— 产品部，open（实习岗，供外部端 jobType=intern 筛选演示）
+	internJob := &domain.JobPosting{
+		ID:           uuid.NewString(),
+		Title:        "产品实习生",
+		DepartmentID: productDeptID,
+		OwnerID:      hrID,
+		Status:       string(domain.JobStatusOpen),
+		Headcount:    2,
+		Location:     "北京",
+		JobType:      string(domain.JobTypeIntern),
+		Description:  "协助产品经理完成需求调研、原型设计与数据分析，参与产品迭代全流程。",
+		Requirements: domain.JobRequirements{
+			MustSkills:   []string{"需求分析"},
+			NiceSkills:   []string{"数据分析", "Axure"},
+			MinEducation: string(domain.EducationAny),
+			MinYears:     0,
+		},
+	}
 	backendID := createJob(ctx, repos, backendJob)
 	pmID := createJob(ctx, repos, pmJob)
 	frontendID := createJob(ctx, repos, frontendJob)
 	createJob(ctx, repos, draftJob)
-	slog.Info("jobs ready", "backend", backendID, "pm", pmID, "frontend", frontendID)
+	internID := createJob(ctx, repos, internJob)
+	slog.Info("jobs ready", "backend", backendID, "pm", pmID, "frontend", frontendID, "intern", internID)
 
 	// ============ 演示候选人 ============
 	type demoApp struct {
