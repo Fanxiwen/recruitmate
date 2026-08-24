@@ -139,6 +139,8 @@ export interface JobPosting {
   updatedAt: ISODate;
   /** 投递总数（内部端列表接口返回） */
   applicationCount?: number;
+  /** 已入职人数（内部端列表接口返回，用于招聘进度展示） */
+  hiredCount?: number;
 }
 
 export interface JobPostingInput {
@@ -359,4 +361,10 @@ export interface OfferRequest {
 export interface OfferDecisionRequest {
   salary?: string;
   reason?: string;
+}
+
+/** 审批中心：Offer 待审批条目（候选人 + 审批单） */
+export interface ApprovalOfferItem {
+  application: ApplicationInternal;
+  offer: Offer;
 }

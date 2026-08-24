@@ -390,6 +390,66 @@ FROM application_events WHERE application_id = $1 ORDER BY created_at ASC, id AS
 	return out, rows.Err()
 }
 
+// ListOfferPending 审批中心：Offer 待审批列表（deptID 非空时仅本部门，供 hiring_manager 隔离）。
+func (s *ApplicationStore) ListOfferPending(ctx context.Context, deptID *string, page, pageSize int) ([]domain.ApprovalOfferItem, int, error) {
+	where := ` WHERE a.stage = 'offer_pending' AND ($1::uuid IS NULL OR j.department_id = $1)`
+	args := []any{nullableStringPtr(deptID)}
+
+	var total int
+	if err := s.pool.QueryRow(ctx, `
+SELECT COUNT(*) FROM applications a JOIN job_postings j ON j.id = a.job_id`+where, args...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	args = append(args, pageSize, (page-1)*pageSize)
+	rows, err := s.pool.Query(ctx, `
+SELECT a.id, a.job_id, j.title AS job_title,
+       a.candidate_id, c.name AS candidate_name, c.email, c.phone,
+       a.stage, a.source, a.submitted_at, a.match_score, a.hard_pass, a.parse_failed,
+       a.parsed_resume, a.match_detail,
+       (a.resume_file_key IS NOT NULL AND a.resume_file_key <> '') AS has_resume_file,
+       a.reject_reason, a.interview_feedback,
+       o.id, o.salary, o.join_date, o.note, o.status,
+       COALESCE(u.name, ''), o.requested_at
+FROM applications a
+JOIN candidates c ON c.id = a.candidate_id
+JOIN job_postings j ON j.id = a.job_id
+JOIN offers o ON o.id = (
+    SELECT id FROM offers WHERE application_id = a.id AND status = 'pending'
+    ORDER BY requested_at DESC LIMIT 1)
+LEFT JOIN users u ON u.id = o.requested_by`+where+`
+ORDER BY o.requested_at ASC LIMIT $2 OFFSET $3`, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	out := make([]domain.ApprovalOfferItem, 0)
+	for rows.Next() {
+		var a domain.ApplicationInternal
+		var o domain.Offer
+		var parsed, detail []byte
+		if err := rows.Scan(&a.ID, &a.JobID, &a.JobTitle,
+			&a.CandidateID, &a.CandidateName, &a.Email, &a.Phone,
+			&a.Stage, &a.Source, &a.SubmittedAt, &a.MatchScore, &a.HardPass, &a.ParseFailed,
+			&parsed, &detail, &a.HasResumeFile, &a.RejectReason, &a.InterviewFeedback,
+			&o.ID, &o.Salary, &o.JoinDate, &o.Note, &o.Status,
+			&o.RequestedByName, &o.RequestedAt); err != nil {
+			return nil, 0, err
+		}
+		fillApplicationJSON(&a, parsed, detail)
+		out = append(out, domain.ApprovalOfferItem{Application: a, Offer: o})
+	}
+	return out, total, rows.Err()
+}
+
+func nullableStringPtr(s *string) any {
+	if s == nil {
+		return nil
+	}
+	return *s
+}
+
 // UpdateResumeFileKey 投递创建后写入简历文件 key。
 func (s *ApplicationStore) UpdateResumeFileKey(ctx context.Context, id, fileKey string) error {
 	_, err := s.pool.Exec(ctx, `UPDATE applications SET resume_file_key = $2 WHERE id = $1`, id, fileKey)

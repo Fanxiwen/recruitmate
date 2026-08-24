@@ -84,9 +84,18 @@ export function JobsPage() {
       render: (_, record) => formatSalary(record.salaryMin, record.salaryMax),
     },
     {
-      title: '需求数',
+      title: '招聘进度（入职/需求）',
       dataIndex: 'headcount',
-      width: 80,
+      width: 150,
+      render: (headcount: number, record: JobPosting) => {
+        const hired = record.hiredCount ?? 0;
+        return (
+          <span style={{ color: hired >= headcount ? '#389e0d' : undefined }}>
+            {hired}/{headcount}
+            {hired >= headcount && ' · 已满编'}
+          </span>
+        );
+      },
     },
     {
       title: '状态',

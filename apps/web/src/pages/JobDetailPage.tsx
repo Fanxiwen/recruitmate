@@ -15,6 +15,7 @@ import {
   Input,
   Modal,
   Popover,
+  Progress,
   Result,
   Row,
   Segmented,
@@ -247,6 +248,21 @@ export function JobDetailPage() {
             <Statistic title="需求人数" value={job.headcount} />
           </Col>
         </Row>
+        <DividerWithGap />
+        <Space direction="vertical" size={8} style={{ width: '100%' }}>
+          <Typography.Text strong>招聘进度（入职满编自动关闭岗位）</Typography.Text>
+          <Progress
+            percent={Math.min(100, Math.round(((stats?.byStage.hired ?? 0) / Math.max(job.headcount, 1)) * 100))}
+            format={() => `${stats?.byStage.hired ?? 0} / ${job.headcount} 人`}
+            status={job.status === 'closed' ? 'success' : 'active'}
+            strokeColor={job.status === 'closed' ? '#52c41a' : '#1e744b'}
+          />
+          {job.status === 'closed' && job.closedAt && (
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              岗位已于 {formatDateTime(job.closedAt)} 自动关闭（入职人数达到需求）
+            </Typography.Text>
+          )}
+        </Space>
         <DividerWithGap />
         <Typography.Text strong>各阶段计数</Typography.Text>
         <Row gutter={[16, 16]} style={{ marginTop: 12 }}>

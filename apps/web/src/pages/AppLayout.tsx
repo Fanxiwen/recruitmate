@@ -7,7 +7,7 @@ import {
 } from '@ant-design/icons';
 import { Badge, Button, Layout, Menu, Popconfirm, Space, Tag, message } from 'antd';
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { usePendingCount } from '../hooks/useApi';
+import { useApprovalOffers, usePendingCount } from '../hooks/useApi';
 import { ROLE_LABELS } from '../lib/format';
 import { useAuthStore } from '../stores/auth';
 
@@ -31,11 +31,12 @@ export function AppLayout() {
   const token = useAuthStore((s) => s.token);
   const user = useAuthStore((s) => s.user);
   const { data: pending } = usePendingCount();
+  const { data: pendingOffers } = useApprovalOffers(1, 1);
 
   // 认证守卫：无 token 或用户信息时回登录页
   if (!token || !user) return <Navigate to="/login" replace />;
 
-  const pendingCount = pending?.total ?? 0;
+  const pendingCount = (pending?.total ?? 0) + (pendingOffers?.total ?? 0);
 
   const handleLogout = () => {
     useAuthStore.getState().logout();
@@ -43,7 +44,11 @@ export function AppLayout() {
   };
 
   // 根据路径高亮菜单（/jobs 与 /jobs?status=pending 都归属「岗位管理」）
-  const selectedKeys = location.pathname.startsWith('/jobs') ? ['/jobs'] : [];
+  const selectedKeys = location.pathname.startsWith('/approvals')
+    ? ['/approvals']
+    : location.pathname.startsWith('/jobs')
+      ? ['/jobs']
+      : [];
 
   const menuItems = [
     {
@@ -53,15 +58,15 @@ export function AppLayout() {
       onClick: () => navigate('/jobs'),
     },
     {
-      key: 'pending',
+      key: '/approvals',
       icon: <AuditOutlined />,
       label: (
         <Space size={6}>
-          待审批
+          审批中心
           {pendingCount > 0 && <Badge count={pendingCount} size="small" />}
         </Space>
       ),
-      onClick: () => navigate('/jobs?status=pending'),
+      onClick: () => navigate('/approvals'),
     },
     {
       key: 'stats',

@@ -170,6 +170,8 @@ type JobPosting struct {
 	UpdatedAt      time.Time       `json:"updatedAt"`
 	// ApplicationCount 投递总数（内部端列表接口返回）。
 	ApplicationCount *int `json:"applicationCount,omitempty"`
+	// HiredCount 已入职人数（内部端列表接口返回，用于招聘进度展示）。
+	HiredCount *int `json:"hiredCount,omitempty"`
 }
 
 // JobPostingInput 创建/更新岗位的请求体。
@@ -305,6 +307,12 @@ type ApplicationEvent struct {
 	ActorName string    `json:"actorName"`
 	Reason    string    `json:"reason"`
 	CreatedAt time.Time `json:"createdAt"`
+}
+
+// ApprovalOfferItem 审批中心：Offer 待审批条目（候选人 + 审批单）。
+type ApprovalOfferItem struct {
+	Application ApplicationInternal `json:"application"`
+	Offer       Offer               `json:"offer"`
 }
 
 // ApplicationPublic 求职者视角的投递状态视图。

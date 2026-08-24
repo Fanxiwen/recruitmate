@@ -74,6 +74,15 @@ export function usePendingCount() {
   });
 }
 
+/** 审批中心：Offer 待审批列表（默认第 1 页 20 条） */
+export function useApprovalOffers(page = 1, pageSize = 20) {
+  return useQuery({
+    queryKey: ['approvals', 'offers', page, pageSize],
+    queryFn: () => request(() => api.listApprovalOffers(page, pageSize)),
+    refetchInterval: 60_000,
+  });
+}
+
 /** 单个岗位详情 */
 export function useJob(id: string) {
   return useQuery({

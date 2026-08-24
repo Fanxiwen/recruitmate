@@ -23,14 +23,15 @@ FROM job_postings j
 LEFT JOIN departments d ON d.id = j.department_id
 LEFT JOIN users u ON u.id = j.owner_id`
 
-// jobSelectWithCount 内部端列表：附带投递总数。
+// jobSelectWithCount 内部端列表：附带投递总数与已入职人数。
 const jobSelectWithCount = `
 SELECT j.id, j.title, j.department_id, d.name AS department_name,
        j.owner_id, u.name AS owner_name,
        j.status, j.headcount, j.salary_min, j.salary_max, j.location, j.job_type,
        j.description, j.requirements,
        j.published_at, j.closed_at, j.created_at, j.updated_at,
-       (SELECT COUNT(*) FROM applications a WHERE a.job_id = j.id) AS application_count
+       (SELECT COUNT(*) FROM applications a WHERE a.job_id = j.id) AS application_count,
+       (SELECT COUNT(*) FROM applications a WHERE a.job_id = j.id AND a.stage = 'hired') AS hired_count
 FROM job_postings j
 LEFT JOIN departments d ON d.id = j.department_id
 LEFT JOIN users u ON u.id = j.owner_id`
@@ -57,16 +58,16 @@ func scanJob(row pgx.Row) (*domain.JobPosting, error) {
 	return &j, nil
 }
 
-// scanJobWithCount 同 scanJob，额外扫描投递总数。
+// scanJobWithCount 同 scanJob，额外扫描投递总数与已入职人数。
 func scanJobWithCount(row pgx.Row) (*domain.JobPosting, error) {
 	var j domain.JobPosting
 	var requirements []byte
-	var count *int
+	var count, hired *int
 	err := row.Scan(&j.ID, &j.Title, &j.DepartmentID, &j.DepartmentName,
 		&j.OwnerID, &j.OwnerName,
 		&j.Status, &j.Headcount, &j.SalaryMin, &j.SalaryMax, &j.Location, &j.JobType,
 		&j.Description, &requirements,
-		&j.PublishedAt, &j.ClosedAt, &j.CreatedAt, &j.UpdatedAt, &count)
+		&j.PublishedAt, &j.ClosedAt, &j.CreatedAt, &j.UpdatedAt, &count, &hired)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrNotFound
@@ -79,6 +80,7 @@ func scanJobWithCount(row pgx.Row) (*domain.JobPosting, error) {
 		}
 	}
 	j.ApplicationCount = count
+	j.HiredCount = hired
 	return &j, nil
 }
 

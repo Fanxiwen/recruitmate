@@ -469,6 +469,9 @@ func (s *JobService) SetStage(ctx context.Context, actor *Actor, appID, stage, r
 		}
 		return nil, domain.WrapError(500, domain.CodeInternal, "更新阶段失败", err)
 	}
+	if stage == string(domain.StageHired) {
+		s.maybeCloseIfFilled(ctx, app.JobID) // 满编自动关闭岗位
+	}
 	action := "stage_change"
 	if stage == string(domain.StageInterview) && reason != "" {
 		action = "feedback" // 进入面试且带备注 → 面试评价
@@ -654,9 +657,48 @@ func (s *JobService) Batch(ctx context.Context, actor *Actor, ids []string, acti
 			updated++
 			s.recordEvent(ctx, id, app.Stage, target, "stage_change", actor, reason)
 			s.audit(ctx, actor, "application.batch", "application", id, map[string]any{"action": action, "to": target})
+			if target == string(domain.StageHired) {
+				s.maybeCloseIfFilled(ctx, app.JobID) // 满编自动关闭岗位
+			}
 		}
 	}
 	return updated, nil
+}
+
+// ListOfferApprovals 审批中心：Offer 待审批列表（hiring_manager 仅本部门）。
+func (s *JobService) ListOfferApprovals(ctx context.Context, actor *Actor, page, pageSize int) (*domain.Paginated[domain.ApprovalOfferItem], error) {
+	if actor == nil {
+		return nil, domain.NewError(401, domain.CodeUnauthorized, "未登录")
+	}
+	var deptID *string
+	if actor.isHiringManager() {
+		deptID = actor.DepID
+	}
+	items, total, err := s.Apps.ListOfferPending(ctx, deptID, page, pageSize)
+	if err != nil {
+		return nil, domain.WrapError(500, domain.CodeInternal, "查询 Offer 待审批列表失败", err)
+	}
+	return &domain.Paginated[domain.ApprovalOfferItem]{Items: items, Total: total, Page: page, PageSize: pageSize}, nil
+}
+
+// maybeCloseIfFilled 入职人数达到岗位需求数时自动关闭岗位（招聘进度推进）。
+func (s *JobService) maybeCloseIfFilled(ctx context.Context, jobID string) {
+	job, err := s.Jobs.Get(ctx, jobID)
+	if err != nil || job.Status != string(domain.JobStatusOpen) {
+		return
+	}
+	st, err := s.Apps.Stats(ctx, jobID)
+	if err != nil {
+		return
+	}
+	if st.ByStage[string(domain.StageHired)] >= job.Headcount {
+		if err := s.Jobs.SetStatus(ctx, jobID, string(domain.JobStatusClosed), nil); err != nil {
+			slog.Error("auto close job failed", "job_id", jobID, "error", err)
+			return
+		}
+		slog.Info("job auto-closed: headcount filled", "job_id", jobID,
+			"hired", st.ByStage[string(domain.StageHired)], "headcount", job.Headcount)
+	}
 }
 
 // Stats 岗位投递漏斗统计。

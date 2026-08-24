@@ -16,6 +16,7 @@ type Deps struct {
 	InternalAuth *handler.InternalAuthHandler
 	InternalJobs *handler.InternalJobHandler
 	InternalApps *handler.InternalApplicationHandler
+	Approvals    *handler.ApprovalsHandler
 }
 
 // New 创建 Gin 引擎并注册全部路由。
@@ -74,6 +75,8 @@ func New(d Deps) *gin.Engine {
 			authGroup.POST("/applications/:id/offer", d.InternalApps.Offer)
 			authGroup.POST("/applications/:id/offer/approve", d.InternalApps.OfferApprove)
 			authGroup.POST("/applications/:id/offer/reject", d.InternalApps.OfferReject)
+
+			authGroup.GET("/approvals/offers", d.Approvals.ListOffers)
 		}
 	}
 

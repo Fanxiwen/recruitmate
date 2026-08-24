@@ -9,6 +9,7 @@ import type {
   ApplicationListQuery,
   ApplicationPublic,
   ApplyRequest,
+  ApprovalOfferItem,
   BatchActionRequest,
   Department,
   JobListQuery,
@@ -218,6 +219,11 @@ export class ApiClient {
       method: 'POST',
       body: JSON.stringify(body),
     });
+  }
+
+  /** 审批中心：Offer 待审批列表 */
+  listApprovalOffers(page = 1, pageSize = 20): Promise<Paginated<ApprovalOfferItem>> {
+    return this.request<Paginated<ApprovalOfferItem>>(`/internal/approvals/offers?page=${page}&pageSize=${pageSize}`);
   }
 
   batchAction(body: BatchActionRequest): Promise<{ updated: number }> {

@@ -136,6 +136,7 @@ func run() error {
 		InternalAuth: handler.NewInternalAuthHandler(authSvc, deptSvc),
 		InternalJobs: handler.NewInternalJobHandler(jobSvc),
 		InternalApps: handler.NewInternalApplicationHandler(jobSvc),
+		Approvals:    handler.NewApprovalsHandler(jobSvc),
 	})
 	r.Use(middleware.CORS(cfg.CORSOrigins))
 

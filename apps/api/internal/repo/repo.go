@@ -128,6 +128,8 @@ type ApplicationRepo interface {
 	InsertApplicationEvent(ctx context.Context, applicationID, fromStage, toStage, action, actorID, actorName, reason string) error
 	// ListApplicationEvents 查询流转时间线。
 	ListApplicationEvents(ctx context.Context, applicationID string) ([]domain.ApplicationEvent, error)
+	// ListOfferPending 审批中心：Offer 待审批列表（deptID 非空时仅本部门）。
+	ListOfferPending(ctx context.Context, deptID *string, page, pageSize int) ([]domain.ApprovalOfferItem, int, error)
 }
 
 // AuditLog 审计日志记录。
