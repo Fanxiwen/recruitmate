@@ -9,7 +9,7 @@ export function Footer() {
         <p className="mt-1 text-xs tracking-wide text-slate-400">
           Centro de Serviços Económicos e Comerciais China-Países de Língua Portuguesa (e Espanhola)
         </p>
-        <div className="mx-auto mt-4 h-px w-24 bg-gradient-to-r from-transparent via-gold-400 to-transparent" />
+        <div className="mx-auto mt-4 h-px w-24 bg-linear-to-r from-transparent via-gold-400 to-transparent" />
         <p className="mt-4 text-sm text-slate-600">
           连接中国与葡语（西语）国家的「一站式」综合服务平台
         </p>

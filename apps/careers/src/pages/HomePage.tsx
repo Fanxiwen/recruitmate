@@ -70,8 +70,10 @@ export function HomePage() {
   return (
     <div>
       {/* ============ Hero：机构主张 + 大搜索框 ============ */}
-      <section className="hero-texture relative overflow-hidden bg-gradient-to-b from-brand-800 via-brand-700 to-brand-600">
-        <div className="mx-auto max-w-4xl px-4 pb-14 pt-14 text-center sm:pb-18 sm:pt-20">
+      <section className="relative overflow-hidden bg-linear-to-b from-brand-800 via-brand-700 to-brand-600">
+        {/* 纹样覆盖层独立于背景渐变，避免 background-image 相互覆盖 */}
+        <div className="hero-texture pointer-events-none absolute inset-0" aria-hidden="true" />
+        <div className="relative mx-auto max-w-4xl px-4 pb-14 pt-14 text-center sm:pb-18 sm:pt-20">
           <span className="badge border border-gold-300/60 bg-gold-400/25 text-gold-100">
             中国-葡语（西语）国家经济贸易服务中心
           </span>
@@ -107,7 +109,7 @@ export function HomePage() {
           <div className="card border-l-4 border-l-gold-500 p-6 sm:p-8">
             <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900 sm:text-xl">
               关于中葡经贸中心
-              <span className="h-px flex-1 bg-gradient-to-r from-gold-400/60 to-transparent" />
+              <span className="h-px flex-1 bg-linear-to-r from-gold-400/60 to-transparent" />
             </h2>
             <p className="mt-4 text-[15px] leading-relaxed text-slate-700">
               中国-葡语（西语）国家经济贸易服务中心（中葡经贸中心）是在国家有关部委及广东省指导支持下，由澳门特别行政区政府和横琴粤澳深度合作区执行委员会共同发起成立的。
