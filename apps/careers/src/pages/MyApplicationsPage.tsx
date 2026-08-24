@@ -60,7 +60,7 @@ export function MyApplicationsPage() {
   const appsQuery = useMyApplications(token);
 
   useEffect(() => {
-    document.title = '我的投递 · Recruitmate';
+    document.title = '我的投递 · 中葡经贸中心';
   }, []);
 
   // 验证码重发倒计时（60s）
@@ -195,7 +195,7 @@ export function MyApplicationsPage() {
             </div>
           )}
           {notice && (
-            <div className="mt-4 flex items-start gap-2 rounded-xl bg-indigo-50 px-3.5 py-3 text-sm text-indigo-700">
+            <div className="mt-4 flex items-start gap-2 rounded-xl bg-brand-50 px-3.5 py-3 text-sm text-brand-700">
               <AlertIcon className="mt-0.5 h-4 w-4 shrink-0" />
               <span>{notice}</span>
             </div>
@@ -267,7 +267,7 @@ function ApplicationCard({ app }: { app: ApplicationPublic }) {
         <div className="min-w-0">
           <Link
             to={`/jobs/${app.jobId}`}
-            className="text-base font-semibold text-slate-900 transition hover:text-indigo-600"
+            className="text-base font-semibold text-slate-900 transition hover:text-brand-600"
           >
             {app.jobTitle}
           </Link>
@@ -303,9 +303,9 @@ function StatusSteps({ status }: { status: CandidateApplicationStatus }) {
           : isDanger && current
             ? 'bg-red-500 text-white'
             : done
-              ? 'bg-indigo-600 text-white'
+              ? 'bg-brand-600 text-white'
               : current
-                ? 'bg-indigo-600 text-white ring-4 ring-indigo-100'
+                ? 'bg-brand-600 text-white ring-4 ring-brand-100'
                 : 'bg-slate-100 text-slate-400';
         return (
           <Fragment key={label}>
@@ -337,7 +337,7 @@ function StatusSteps({ status }: { status: CandidateApplicationStatus }) {
                     : isDanger && i === activeIndex
                       ? 'bg-red-400'
                       : i < activeIndex
-                        ? 'bg-indigo-400'
+                        ? 'bg-brand-400'
                         : 'bg-slate-200'
                 }`}
                 aria-hidden="true"
@@ -358,7 +358,7 @@ function statusBadgeClass(status: CandidateApplicationStatus): string {
     case 'rejected':
       return 'bg-red-50 text-red-500';
     case 'offered':
-      return 'bg-indigo-50 text-indigo-600';
+      return 'bg-brand-50 text-brand-600';
     case 'interviewing':
       return 'bg-blue-50 text-blue-600';
     case 'processing':
@@ -374,7 +374,7 @@ function statusHintClass(status: CandidateApplicationStatus): string {
     case 'rejected':
       return 'bg-red-50 text-red-600';
     case 'offered':
-      return 'bg-indigo-50 text-indigo-700';
+      return 'bg-brand-50 text-brand-700';
     case 'interviewing':
       return 'bg-blue-50 text-blue-700';
     case 'processing':

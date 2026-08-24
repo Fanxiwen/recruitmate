@@ -46,13 +46,13 @@ export function LoginPage() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'linear-gradient(135deg, #e6f4ff 0%, #f0f5ff 100%)',
+        background: 'linear-gradient(135deg, #eef7f1 0%, #faf9f5 100%)',
       }}
     >
       <Card style={{ width: 400, boxShadow: '0 4px 24px rgba(0,0,0,0.08)' }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <Typography.Title level={3} style={{ marginBottom: 4 }}>
-            Recruitmate
+            中葡经贸中心
           </Typography.Title>
           <Typography.Text type="secondary">内部招聘管理系统</Typography.Text>
         </div>

@@ -10,6 +10,7 @@ import {
   ChevronRightIcon,
   InboxIcon,
   SearchIcon,
+  SparklesIcon,
 } from '../components/Icons';
 import { getErrorMessage, useDepartments, useJobs } from '../hooks/useApi';
 import { paginationItems } from '../utils/format';
@@ -37,7 +38,7 @@ export function HomePage() {
   }, [q, departmentId, jobType]);
 
   useEffect(() => {
-    document.title = 'Recruitmate · 加入我们';
+    document.title = '中葡经贸中心 · 人才招聘';
   }, []);
 
   // 稳定的查询参数（避免 queryKey 每次渲染都变化）
@@ -68,27 +69,68 @@ export function HomePage() {
 
   return (
     <div>
-      {/* ============ Hero：价值主张 + 大搜索框 ============ */}
-      <section className="border-b border-slate-100 bg-gradient-to-b from-indigo-50/80 via-white to-white">
-        <div className="mx-auto max-w-4xl px-4 pb-10 pt-12 text-center sm:pb-14 sm:pt-16">
-          <span className="badge bg-indigo-100 text-indigo-700">热招中 · 期待你的加入</span>
-          <h1 className="mt-4 text-3xl font-bold tracking-tight text-slate-900 sm:text-5xl">
-            与优秀的人，做有价值的事
+      {/* ============ Hero：机构主张 + 大搜索框 ============ */}
+      <section className="hero-texture relative overflow-hidden bg-gradient-to-b from-brand-800 via-brand-700 to-brand-600">
+        <div className="mx-auto max-w-4xl px-4 pb-14 pt-14 text-center sm:pb-18 sm:pt-20">
+          <span className="badge border border-gold-400/40 bg-gold-400/15 text-gold-200">
+            中国-葡语（西语）国家经济贸易服务中心
+          </span>
+          <h1 className="mt-5 text-3xl font-bold leading-snug tracking-tight text-white sm:text-5xl">
+            连接中国与世界，
+            <br className="sm:hidden" />
+            共筑经贸桥梁
           </h1>
-          <p className="mx-auto mt-3 max-w-xl text-base text-slate-500 sm:text-lg">
-            加入 Recruitmate，与一流的伙伴一起，打造影响千万用户的产品
+          <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-brand-100 sm:text-lg">
+            中葡经贸中心致力于推动中国与葡语（西语）国家在经贸、投资与人才领域的深度合作。加入我们，成为跨文化交流的桥梁。
+          </p>
+          <p className="mt-3 text-sm font-medium tracking-[0.35em] text-gold-300">
+            CONECTAR · COOPERAR · CRESCER
           </p>
           <div className="relative mx-auto mt-8 max-w-xl">
             <SearchIcon className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
             <input
-              className="h-14 w-full rounded-2xl border border-slate-200 bg-white pl-12 pr-4 text-base text-slate-900 shadow-lg shadow-indigo-100/70 outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+              className="h-14 w-full rounded-2xl border border-white/20 bg-white pl-12 pr-4 text-base text-slate-900 shadow-xl shadow-brand-900/30 outline-none transition placeholder:text-slate-400 focus:ring-2 focus:ring-gold-400/70"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="搜索岗位、关键词或技能，如「前端」「Go」"
+              placeholder="搜索岗位、关键词或技能，如「葡语」「Go」「经贸」"
               aria-label="搜索岗位"
             />
           </div>
-          <p className="mt-3 text-xs text-slate-400">支持按关键词、部门、职位类型筛选岗位</p>
+          <p className="mt-3 text-xs text-brand-200">支持按关键词、部门、职位类型筛选岗位</p>
+        </div>
+        <div className="azulejo-band" />
+      </section>
+
+      {/* ============ 品牌价值主张 ============ */}
+      <section className="border-b border-slate-100 bg-white">
+        <div className="mx-auto grid max-w-4xl grid-cols-1 gap-4 px-4 py-8 sm:grid-cols-3">
+          {[
+            {
+              icon: <BuildingIcon className="h-6 w-6 text-brand-600" />,
+              title: '跨文化平台',
+              desc: '服务中国与葡语（西语）国家合作，工作场景横跨多元市场。',
+            },
+            {
+              icon: <BriefcaseIcon className="h-6 w-6 text-brand-600" />,
+              title: '经贸一线',
+              desc: '深度参与经贸促进、投资服务与产业对接的前沿实践。',
+            },
+            {
+              icon: <SparklesIcon className="h-6 w-6 text-brand-600" />,
+              title: '广阔成长',
+              desc: '语言能力与专业能力并重，与机构共同成长。',
+            },
+          ].map((item) => (
+            <div key={item.title} className="flex items-start gap-3">
+              <span className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-50">
+                {item.icon}
+              </span>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900">{item.title}</h3>
+                <p className="mt-1 text-xs leading-relaxed text-slate-500">{item.desc}</p>
+              </div>
+            </div>
+          ))}
         </div>
       </section>
 
@@ -131,7 +173,7 @@ export function HomePage() {
 
           <button
             type="button"
-            className="shrink-0 text-sm font-medium text-indigo-600 transition hover:text-indigo-700 disabled:cursor-not-allowed disabled:text-slate-300 sm:ml-auto"
+            className="shrink-0 text-sm font-medium text-brand-600 transition hover:text-brand-700 disabled:cursor-not-allowed disabled:text-slate-300 sm:ml-auto"
             disabled={!hasFilter}
             onClick={clearFilters}
           >
@@ -208,7 +250,7 @@ function Pagination({
     <nav className="mt-8 flex items-center justify-center gap-1.5" aria-label="分页">
       <button
         type="button"
-        className={`${base} border-slate-200 bg-white text-slate-600 hover:border-indigo-200 hover:text-indigo-600 disabled:cursor-not-allowed disabled:opacity-40`}
+        className={`${base} border-slate-200 bg-white text-slate-600 hover:border-brand-200 hover:text-brand-600 disabled:cursor-not-allowed disabled:opacity-40`}
         disabled={page <= 1}
         onClick={() => onChange(page - 1)}
         aria-label="上一页"
@@ -226,8 +268,8 @@ function Pagination({
             type="button"
             className={`${base} ${
               item === page
-                ? 'border-indigo-600 bg-indigo-600 text-white shadow-sm'
-                : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-200 hover:text-indigo-600'
+                ? 'border-brand-600 bg-brand-600 text-white shadow-sm'
+                : 'border-slate-200 bg-white text-slate-600 hover:border-brand-200 hover:text-brand-600'
             }`}
             onClick={() => onChange(item)}
             aria-current={item === page ? 'page' : undefined}
@@ -238,7 +280,7 @@ function Pagination({
       )}
       <button
         type="button"
-        className={`${base} border-slate-200 bg-white text-slate-600 hover:border-indigo-200 hover:text-indigo-600 disabled:cursor-not-allowed disabled:opacity-40`}
+        className={`${base} border-slate-200 bg-white text-slate-600 hover:border-brand-200 hover:text-brand-600 disabled:cursor-not-allowed disabled:opacity-40`}
         disabled={page >= totalPages}
         onClick={() => onChange(page + 1)}
         aria-label="下一页"

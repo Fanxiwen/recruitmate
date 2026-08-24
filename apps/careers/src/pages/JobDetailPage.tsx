@@ -22,7 +22,7 @@ export function JobDetailPage() {
   const job = jobQuery.data;
 
   useEffect(() => {
-    document.title = job ? `${job.title} · Recruitmate` : '岗位详情 · Recruitmate';
+    document.title = job ? `${job.title} · 中葡经贸中心` : '岗位详情 · 中葡经贸中心';
   }, [job]);
 
   if (jobQuery.isPending) return <DetailSkeleton />;
@@ -43,7 +43,7 @@ export function JobDetailPage() {
       {/* ============ 面包屑 ============ */}
       <Link
         to="/"
-        className="inline-flex items-center gap-1 text-sm text-slate-500 transition hover:text-indigo-600"
+        className="inline-flex items-center gap-1 text-sm text-slate-500 transition hover:text-brand-600"
       >
         <ChevronLeftIcon className="h-4 w-4" />
         返回岗位列表
@@ -57,7 +57,7 @@ export function JobDetailPage() {
               <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
                 {job.title}
               </h1>
-              <span className="badge bg-indigo-50 text-indigo-600">
+              <span className="badge bg-brand-50 text-brand-600">
                 {JOB_TYPE_LABELS[job.jobType]}
               </span>
             </div>
@@ -159,9 +159,9 @@ export function JobDetailPage() {
             </dl>
           </section>
 
-          <section className="rounded-2xl border border-indigo-100 bg-indigo-50/60 p-6">
-            <h3 className="text-sm font-semibold text-indigo-900">投递提示</h3>
-            <p className="mt-2 text-xs leading-5 text-indigo-700/80">
+          <section className="rounded-2xl border border-brand-100 bg-brand-50/60 p-6">
+            <h3 className="text-sm font-semibold text-brand-900">投递提示</h3>
+            <p className="mt-2 text-xs leading-5 text-brand-700/80">
               投递后 1-3 个工作日内我们会通过邮件与你联系。可随时在「我的投递」中查看简历处理进度与结果反馈。
             </p>
           </section>

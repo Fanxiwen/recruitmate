@@ -24,10 +24,10 @@ export function JobCard({ job }: JobCardProps) {
     >
       {/* 标题 + 类型 */}
       <div className="flex items-start justify-between gap-3">
-        <h3 className="line-clamp-1 text-lg font-semibold text-slate-900 transition-colors group-hover:text-indigo-600">
+        <h3 className="line-clamp-1 text-lg font-semibold text-slate-900 transition-colors group-hover:text-brand-600">
           {job.title}
         </h3>
-        <span className="badge shrink-0 bg-indigo-50 text-indigo-600">
+        <span className="badge shrink-0 bg-brand-50 text-brand-600">
           {JOB_TYPE_LABELS[job.jobType]}
         </span>
       </div>
@@ -73,7 +73,7 @@ export function JobCard({ job }: JobCardProps) {
           <ClockIcon className="h-3.5 w-3.5" />
           {relativeTime(job.publishedAt ?? job.createdAt)}
         </span>
-        <span className="inline-flex items-center gap-0.5 font-medium text-indigo-600">
+        <span className="inline-flex items-center gap-0.5 font-medium text-brand-600">
           查看详情
           <ArrowRightIcon className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
         </span>

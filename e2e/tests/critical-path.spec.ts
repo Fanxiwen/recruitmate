@@ -14,7 +14,7 @@ test.describe.configure({ mode: 'serial' });
 
 test('外部端：浏览岗位并投递简历', async ({ page }) => {
   await page.goto(CAREERS);
-  await expect(page.getByText('Recruitmate', { exact: false }).first()).toBeVisible();
+  await expect(page.getByText('中葡经贸中心', { exact: false }).first()).toBeVisible();
 
   // 岗位列表加载出卡片
   const cards = page.locator('a[href^="/jobs/"], [data-testid="job-card"]');

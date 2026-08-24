@@ -32,6 +32,18 @@ export function BoltIcon({ className = 'h-5 w-5', ...props }: IconProps) {
   );
 }
 
+/** 地球仪（品牌 Logo：中国—葡语国家桥梁意象） */
+export function GlobeIcon({ className = 'h-5 w-5', ...props }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" className={className} {...props}>
+      <circle cx="12" cy="12" r="9" strokeWidth={1.8} />
+      <path d="M3.6 9h16.8M3.6 15h16.8" strokeWidth={1.8} strokeLinecap="round" />
+      <ellipse cx="12" cy="12" rx="4" ry="9" strokeWidth={1.8} />
+      <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
 export function SearchIcon(props: IconProps) {
   return (
     <StrokeIcon {...props}>

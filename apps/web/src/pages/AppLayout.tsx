@@ -85,9 +85,19 @@ export function AppLayout() {
           }}
           onClick={() => navigate('/jobs')}
         >
-          <RocketFilled style={{ color: '#1677ff', fontSize: 22 }} />
-          <span style={{ color: '#fff', fontSize: 17, fontWeight: 600, whiteSpace: 'nowrap' }}>
-            Recruitmate
+          <RocketFilled style={{ color: '#c9a227', fontSize: 22 }} />
+          <span style={{ color: '#fff', fontSize: 16, fontWeight: 600, whiteSpace: 'nowrap' }}>
+            中葡经贸中心
+          </span>
+          <span
+            style={{
+              color: 'rgba(255,255,255,0.45)',
+              fontSize: 11,
+              whiteSpace: 'nowrap',
+              marginTop: 2,
+            }}
+          >
+            招聘管理
           </span>
         </div>
         <Menu

@@ -1,11 +1,42 @@
 @import 'tailwindcss';
 
-/* 品牌主题：白底 + indigo 主色，中文字体栈 */
+/* ============================================================
+ * 中葡经贸中心 · 品牌主题
+ * 配色灵感：葡萄牙国旗绿 + 金（浑天仪金），辅以暖石色底，
+ * 呼应「中国 — 葡语（西语）国家」经贸桥梁的品牌气质。
+ * ============================================================ */
 @theme {
   --font-sans:
     -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
     'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Arial,
     sans-serif;
+
+  /* 品牌绿 */
+  --color-brand-50: #eff7f1;
+  --color-brand-100: #d9eee2;
+  --color-brand-200: #b5dec9;
+  --color-brand-300: #89c7a7;
+  --color-brand-400: #57a97f;
+  --color-brand-500: #338c61;
+  --color-brand-600: #1e744b;
+  --color-brand-700: #185e3e;
+  --color-brand-800: #124a31;
+  --color-brand-900: #0c3824;
+
+  /* 品牌金（浑天仪金） */
+  --color-gold-50: #fbf7ea;
+  --color-gold-100: #f5ecc9;
+  --color-gold-200: #ecdca0;
+  --color-gold-300: #dfc56f;
+  --color-gold-400: #d2b04a;
+  --color-gold-500: #c9a227;
+  --color-gold-600: #a9871d;
+  --color-gold-700: #866b15;
+  --color-gold-800: #684f0e;
+  --color-gold-900: #4a380a;
+
+  /* 暖石底 */
+  --color-stone-warm: #faf9f5;
 }
 
 @layer base {
@@ -13,7 +44,7 @@
     scroll-behavior: smooth;
   }
   body {
-    @apply bg-slate-50 font-sans text-slate-900 antialiased;
+    @apply bg-stone-warm font-sans text-slate-900 antialiased;
   }
 }
 
@@ -23,13 +54,16 @@
     @apply rounded-2xl border border-slate-200/70 bg-white shadow-sm;
   }
   .input {
-    @apply w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20;
+    @apply w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20;
   }
   .select {
-    @apply w-full cursor-pointer rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20;
+    @apply w-full cursor-pointer rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20;
   }
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700 active:bg-indigo-800 disabled:cursor-not-allowed disabled:opacity-60;
+    @apply inline-flex items-center justify-center gap-1.5 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-brand-700 active:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-60;
+  }
+  .btn-gold {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-xl bg-gold-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-gold-600 active:bg-gold-700 disabled:cursor-not-allowed disabled:opacity-60;
   }
   .btn-secondary {
     @apply inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60;
@@ -39,5 +73,32 @@
   }
   .badge {
     @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium;
+  }
+}
+
+/* ============================================================
+ * 品牌装饰：瓷片（Azulejo）纹样带 + 浑天仪金线
+ * 用纯 CSS 渐变模拟葡式瓷砖的几何韵律，点缀 hero 底部。
+ * ============================================================ */
+@layer utilities {
+  .azulejo-band {
+    height: 10px;
+    background-image:
+      repeating-linear-gradient(
+        90deg,
+        var(--color-gold-500) 0 6px,
+        transparent 6px 20px
+      ),
+      repeating-linear-gradient(
+        45deg,
+        var(--color-brand-700) 0 2px,
+        transparent 2px 14px
+      );
+    opacity: 0.55;
+  }
+  .hero-texture {
+    background-image:
+      radial-gradient(circle at 85% 15%, rgba(201, 162, 39, 0.16) 0 90px, transparent 240px),
+      radial-gradient(circle at 12% 88%, rgba(255, 255, 255, 0.06) 0 140px, transparent 320px);
   }
 }

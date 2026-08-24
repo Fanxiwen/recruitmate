@@ -268,9 +268,9 @@ export function ApplyModal({ job, open, onClose }: ApplyModalProps) {
                   onChange={handleFileChange}
                 />
                 {file ? (
-                  <div className="flex items-center justify-between gap-2 rounded-xl border border-indigo-200 bg-indigo-50/60 px-3.5 py-3">
+                  <div className="flex items-center justify-between gap-2 rounded-xl border border-brand-200 bg-brand-50/60 px-3.5 py-3">
                     <span className="flex min-w-0 items-center gap-2 text-sm text-slate-700">
-                      <DocumentIcon className="h-5 w-5 shrink-0 text-indigo-500" />
+                      <DocumentIcon className="h-5 w-5 shrink-0 text-brand-500" />
                       <span className="truncate">{file.name}</span>
                       <span className="shrink-0 text-xs text-slate-400">{formatFileSize(file.size)}</span>
                     </span>
@@ -287,7 +287,7 @@ export function ApplyModal({ job, open, onClose }: ApplyModalProps) {
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="flex w-full flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/60 px-4 py-6 text-slate-500 transition hover:border-indigo-300 hover:bg-indigo-50/40 hover:text-indigo-600"
+                    className="flex w-full flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/60 px-4 py-6 text-slate-500 transition hover:border-brand-300 hover:bg-brand-50/40 hover:text-brand-600"
                   >
                     <UploadIcon className="h-6 w-6" />
                     <span className="text-sm font-medium">点击上传简历文件</span>
