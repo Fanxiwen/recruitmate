@@ -229,14 +229,14 @@ func (s *ApplicationStore) GetByID(ctx context.Context, id string) (*domain.Appl
 	return scanApplicationInternalDetail(s.pool.QueryRow(ctx, appInternalDetailSelect+` WHERE a.id = $1`, id))
 }
 
-// UpdateStage 更新流转阶段（OA：转 rejected 记录淘汰原因；转 interview 且带备注时记录面试评价）。
+// UpdateStage 更新流转阶段（OA：转 rejected 记录淘汰原因；进面试轮次且带备注时记录面试评价）。
 func (s *ApplicationStore) UpdateStage(ctx context.Context, id, stage, reason string) error {
 	rejectReason := ""
 	interviewFeedback := ""
 	if stage == string(domain.StageRejected) {
 		rejectReason = reason
 	}
-	if stage == string(domain.StageInterview) && reason != "" {
+	if (stage == string(domain.StageInterview) || stage == string(domain.StageManagerInterview)) && reason != "" {
 		interviewFeedback = reason
 	}
 	tag, err := s.pool.Exec(ctx, `
@@ -337,10 +337,16 @@ func (s *ApplicationStore) GetOfferRequestedBy(ctx context.Context, offerID stri
 }
 
 // DecideOffer 审批 Offer：通过（approved）/ 驳回（rejected）。
-func (s *ApplicationStore) DecideOffer(ctx context.Context, offerID, status, decidedBy string) error {
+// salary：审批通过时确定的最终薪资（非空时覆盖建议薪资）。
+func (s *ApplicationStore) DecideOffer(ctx context.Context, offerID, status, decidedBy, salary string) error {
 	tag, err := s.pool.Exec(ctx, `
-UPDATE offers SET status = $2, decided_by = $3, decided_at = now() WHERE id = $1 AND status = 'pending'`,
-		offerID, status, decidedBy)
+UPDATE offers SET
+  status = $2,
+  decided_by = $3,
+  decided_at = now(),
+  salary = CASE WHEN $4 <> '' THEN $4 ELSE salary END
+WHERE id = $1 AND status = 'pending'`,
+		offerID, status, decidedBy, salary)
 	if err != nil {
 		return fmt.Errorf("repo: decide offer: %w", err)
 	}

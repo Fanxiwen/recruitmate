@@ -25,31 +25,36 @@ check "非法跳步被拒(409)" "$([ "$CODE" = "409" ] && echo 0 || echo 1)"
 CODE=$(curl -s -o /dev/null -w "%{http_code}" -X PATCH "$API/internal/applications/$APP/stage" -H "Authorization: Bearer $HR" -H 'Content-Type: application/json' -d '{"stage":"rejected"}')
 check "淘汰缺原因被拒(400)" "$([ "$CODE" = "400" ] && echo 0 || echo 1)"
 
-# 3. 正常流转 new→screening→interview（带面试评价）
+# 3. 正常流转 new→screening→interview(HR初面)→manager_interview(部门负责人面)
 curl -sf -X PATCH "$API/internal/applications/$APP/stage" -H "Authorization: Bearer $HR" -H 'Content-Type: application/json' -d '{"stage":"screening"}' >/dev/null && check "初筛通过" 0 || check "初筛通过" 1
-curl -sf -X PATCH "$API/internal/applications/$APP/stage" -H "Authorization: Bearer $HR" -H 'Content-Type: application/json' -d '{"stage":"interview","reason":"技术面表现良好，建议推进"}' >/dev/null && check "进入面试(带评价)" 0 || check "进入面试(带评价)" 1
+curl -sf -X PATCH "$API/internal/applications/$APP/stage" -H "Authorization: Bearer $HR" -H 'Content-Type: application/json' -d '{"stage":"interview","reason":"HR初面表现良好"}' >/dev/null && check "HR初面(带评价)" 0 || check "HR初面(带评价)" 1
+curl -sf -X PATCH "$API/internal/applications/$APP/stage" -H "Authorization: Bearer $HR" -H 'Content-Type: application/json' -d '{"stage":"manager_interview","reason":"部门负责人面通过"}' >/dev/null && check "部门负责人面(带评价)" 0 || check "部门负责人面(带评价)" 1
 
-# 4. HR 发起 Offer
-OFFER=$(curl -sf -X POST "$API/internal/applications/$APP/offer" -H "Authorization: Bearer $HR" -H 'Content-Type: application/json' -d '{"salary":"25K","joinDate":"2026-09-01","note":"按技术岗标准定薪"}')
+# 4. HR 发起 Offer（建议薪资）
+OFFER=$(curl -sf -X POST "$API/internal/applications/$APP/offer" -H "Authorization: Bearer $HR" -H 'Content-Type: application/json' -d '{"salary":"建议25K","joinDate":"2026-09-01","note":"按技术岗标准"}')
 echo "$OFFER" | grep -q '"pending"' && check "HR 发起 Offer" 0 || check "HR 发起 Offer" 1
 
 # 5. 四眼：HR 不能批自己的 Offer
-CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$API/internal/applications/$APP/offer/approve" -H "Authorization: Bearer $HR")
+CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$API/internal/applications/$APP/offer/approve" -H "Authorization: Bearer $HR" -H 'Content-Type: application/json' -d '{"salary":"30K"}')
 check "发起人自批被拒(403)" "$([ "$CODE" = "403" ] && echo 0 || echo 1)"
 
-# 6. 部门负责人审批通过
-curl -sf -X POST "$API/internal/applications/$APP/offer/approve" -H "Authorization: Bearer $MGR" >/dev/null && check "部门负责人审批通过" 0 || check "部门负责人审批通过" 1
+# 5b. 审批通过但不填薪资应 400（薪资由部门负责人确定）
+CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$API/internal/applications/$APP/offer/approve" -H "Authorization: Bearer $MGR" -H 'Content-Type: application/json' -d '{}')
+check "审批缺最终薪资被拒(400)" "$([ "$CODE" = "400" ] && echo 0 || echo 1)"
 
-# 7. 终态验证：offered + 时间线 + offer 状态
+# 6. 部门负责人审批通过并确定最终薪资
+curl -sf -X POST "$API/internal/applications/$APP/offer/approve" -H "Authorization: Bearer $MGR" -H 'Content-Type: application/json' -d '{"salary":"28K"}' >/dev/null && check "部门负责人审批通过(定薪)" 0 || check "部门负责人审批通过(定薪)" 1
+
+# 7. 终态验证：offered + 最终薪资 28K + 时间线
 DETAIL=$(curl -sf -H "Authorization: Bearer $HR" "$API/internal/applications/$APP")
 echo "$DETAIL" | python3 -c "
 import sys,json
 d=json.load(sys.stdin)
 assert d['stage']=='offered', d['stage']
 assert d['offer']['status']=='approved'
-assert len(d['events'])>=4, len(d['events'])
-assert d['interviewFeedback']!=''
-print('  stage=offered, offer=approved, events=%d, 面试评价已记录' % len(d['events']))" && check "终态与时间线" 0 || check "终态与时间线" 1
+assert d['offer']['salary']=='28K', d['offer']['salary']
+assert len(d['events'])>=5, len(d['events'])
+print('  stage=offered, 最终薪资=%s, events=%d' % (d['offer']['salary'], len(d['events'])))" && check "终态/定薪/时间线" 0 || check "终态/定薪/时间线" 1
 
 # 8. 求职者视角状态
 CAND_TOKEN=$(curl -sf -X POST "$API/public/auth/email-code" -H 'Content-Type: application/json' -d '{"email":"oa-verify@test.local"}' >/dev/null; echo "")

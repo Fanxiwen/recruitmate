@@ -59,6 +59,6 @@ type InternalJobService interface {
 	ResumeFile(ctx context.Context, actor *service.Actor, appID string) ([]byte, string, error)
 	// OA Offer 审批链
 	OfferRequest(ctx context.Context, actor *service.Actor, appID, salary, joinDate, note string) (*domain.Offer, error)
-	OfferApprove(ctx context.Context, actor *service.Actor, appID string) (*domain.ApplicationInternal, error)
+	OfferApprove(ctx context.Context, actor *service.Actor, appID, salary string) (*domain.ApplicationInternal, error)
 	OfferReject(ctx context.Context, actor *service.Actor, appID, reason string) (*domain.ApplicationInternal, error)
 }

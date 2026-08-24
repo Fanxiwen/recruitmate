@@ -52,31 +52,34 @@ const (
 type ApplicationStage string
 
 const (
-	StageNew          ApplicationStage = "new"
-	StageScreening    ApplicationStage = "screening"
-	StageInterview    ApplicationStage = "interview"
-	StageOfferPending ApplicationStage = "offer_pending"
-	StageOffered      ApplicationStage = "offered"
-	StageHired        ApplicationStage = "hired"
-	StageRejected     ApplicationStage = "rejected"
+	StageNew              ApplicationStage = "new"
+	StageScreening        ApplicationStage = "screening"
+	StageInterview        ApplicationStage = "interview"
+	StageManagerInterview ApplicationStage = "manager_interview"
+	StageOfferPending     ApplicationStage = "offer_pending"
+	StageOffered          ApplicationStage = "offered"
+	StageHired            ApplicationStage = "hired"
+	StageRejected         ApplicationStage = "rejected"
 )
 
 // ValidStages 合法流转阶段集合。
 var ValidStages = map[ApplicationStage]bool{
-	StageNew: true, StageScreening: true, StageInterview: true,
+	StageNew: true, StageScreening: true, StageInterview: true, StageManagerInterview: true,
 	StageOfferPending: true, StageOffered: true, StageHired: true, StageRejected: true,
 }
 
 // StageTransitions 阶段流转状态机（服务端强制，与前端 shared-types 一致）。
-// rejected → new 为「误杀恢复」，需 HR 手动执行并填写原因。
+// 面试两轮：HR 初面 → 部门负责人面；Offer 由 HR 发起、部门负责人审批定薪；
+// 驳回回退部门负责人面。rejected → new 为「误杀恢复」。
 var StageTransitions = map[ApplicationStage][]ApplicationStage{
-	StageNew:          {StageScreening, StageRejected},
-	StageScreening:    {StageInterview, StageRejected},
-	StageInterview:    {StageOfferPending, StageRejected},
-	StageOfferPending: {StageOffered, StageInterview}, // 经 Offer 审批接口流转
-	StageOffered:      {StageHired, StageRejected},
-	StageHired:        {},
-	StageRejected:     {StageNew},
+	StageNew:              {StageScreening, StageRejected},
+	StageScreening:        {StageInterview, StageRejected},
+	StageInterview:        {StageManagerInterview, StageRejected},
+	StageManagerInterview: {StageOfferPending, StageRejected},
+	StageOfferPending:     {StageOffered, StageManagerInterview}, // 经 Offer 审批接口流转
+	StageOffered:          {StageHired, StageRejected},
+	StageHired:            {},
+	StageRejected:         {StageNew},
 }
 
 // CanTransition 判断阶段流转是否合法（同阶段视为合法，用于幂等展示）。
@@ -98,7 +101,7 @@ var ValidJobStatuses = map[JobStatus]bool{
 }
 
 // CandidateStatusFromStage 由投递阶段推导求职者视角的状态
-// （new→processing, screening→screening, interview→interviewing,
+// （new→processing, screening→screening, interview/manager_interview→interviewing,
 //   offer_pending/offered→offered, hired→hired, rejected→rejected）。
 func CandidateStatusFromStage(stage string) string {
 	switch ApplicationStage(stage) {
@@ -106,7 +109,7 @@ func CandidateStatusFromStage(stage string) string {
 		return "processing"
 	case StageScreening:
 		return "screening"
-	case StageInterview:
+	case StageInterview, StageManagerInterview:
 		return "interviewing"
 	case StageOfferPending, StageOffered:
 		return "offered"
@@ -426,8 +429,9 @@ type OfferRequest struct {
 	Note     string `json:"note"`
 }
 
-// OfferDecisionRequest Offer 审批动作请求。
+// OfferDecisionRequest Offer 审批动作请求（通过时 salary 为最终薪资，必填）。
 type OfferDecisionRequest struct {
+	Salary string `json:"salary"`
 	Reason string `json:"reason"`
 }
 

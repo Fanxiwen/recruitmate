@@ -58,9 +58,13 @@ func (h *InternalApplicationHandler) Offer(c *gin.Context) {
 	respondJSON(c, http.StatusOK, offer)
 }
 
-// OfferApprove POST /api/v1/internal/applications/:id/offer/approve —— 审批通过。
+// OfferApprove POST /api/v1/internal/applications/:id/offer/approve —— 审批通过（salary 为最终薪资，必填）。
 func (h *InternalApplicationHandler) OfferApprove(c *gin.Context) {
-	app, err := h.Jobs.OfferApprove(c.Request.Context(), actorFromContext(c), c.Param("id"))
+	var req domain.OfferDecisionRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	app, err := h.Jobs.OfferApprove(c.Request.Context(), actorFromContext(c), c.Param("id"), req.Salary)
 	if err != nil {
 		respondError(c, err)
 		return

@@ -200,7 +200,7 @@ export class ApiClient {
     });
   }
 
-  /** 发起 Offer 审批（仅 hr/admin 可发起，stage 必须为 interview） */
+  /** 发起 Offer 审批（仅 hr/admin 可发起，候选人须处于部门负责人面阶段；salary 为建议薪资） */
   createOffer(id: string, body: OfferRequest): Promise<Offer> {
     return this.request<Offer>(`/internal/applications/${id}/offer`, {
       method: 'POST',
@@ -208,11 +208,15 @@ export class ApiClient {
     });
   }
 
-  /** Offer 审批动作：通过 / 驳回（驳回时 reason 必填） */
-  decideOffer(id: string, decision: 'approve' | 'reject', reason?: string): Promise<ApplicationInternal> {
+  /** Offer 审批动作：通过（salary 为最终薪资，必填）/ 驳回（reason 必填） */
+  decideOffer(
+    id: string,
+    decision: 'approve' | 'reject',
+    body: { salary?: string; reason?: string } = {},
+  ): Promise<ApplicationInternal> {
     return this.request<ApplicationInternal>(`/internal/applications/${id}/offer/${decision}`, {
       method: 'POST',
-      body: JSON.stringify({ reason }),
+      body: JSON.stringify(body),
     });
   }
 

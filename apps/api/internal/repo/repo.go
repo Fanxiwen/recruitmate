@@ -122,8 +122,8 @@ type ApplicationRepo interface {
 	GetLatestOfferByApplication(ctx context.Context, applicationID string) (*domain.Offer, error)
 	// GetOfferRequestedBy 读取 Offer 发起人（四眼原则）。
 	GetOfferRequestedBy(ctx context.Context, offerID string) (string, error)
-	// DecideOffer 审批 Offer（approved / rejected）。
-	DecideOffer(ctx context.Context, offerID, status, decidedBy string) error
+	// DecideOffer 审批 Offer（approved / rejected；salary 为审批通过时确定的最终薪资）。
+	DecideOffer(ctx context.Context, offerID, status, decidedBy, salary string) error
 	// InsertApplicationEvent 写入流转事件。
 	InsertApplicationEvent(ctx context.Context, applicationID, fromStage, toStage, action, actorID, actorName, reason string) error
 	// ListApplicationEvents 查询流转时间线。

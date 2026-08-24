@@ -71,9 +71,9 @@ export function ApplicationTable({
   /** 当前阶段是否允许流转到 rejected（决定是否展示「淘汰」按钮） */
   const canReject = (stage: ApplicationStage) => STAGE_TRANSITIONS[stage].includes('rejected');
 
-  /** 当前用户是否可发起 Offer（hr / admin，且阶段为面试中） */
+  /** 当前用户是否可发起 Offer（hr / admin，且阶段为部门负责人面） */
   const canCreateOffer = (app: ApplicationInternal) =>
-    (user?.role === 'hr' || user?.role === 'admin') && app.stage === 'interview';
+    (user?.role === 'hr' || user?.role === 'admin') && app.stage === 'manager_interview';
 
   const openReject = (app: ApplicationInternal) => {
     setRejectTarget(app);
@@ -361,7 +361,7 @@ export function ApplicationTable({
         destroyOnHidden
       >
         <Form form={offerForm} layout="vertical">
-          <Form.Item name="salary" label="薪资（千元/月）">
+          <Form.Item name="salary" label="建议薪资（千元/月）" extra="最终薪资由部门负责人审批时确定">
             <Input placeholder="如 20-25（可选）" />
           </Form.Item>
           <Form.Item name="joinDate" label="入职时间">

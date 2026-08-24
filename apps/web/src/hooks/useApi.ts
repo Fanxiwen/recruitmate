@@ -201,12 +201,21 @@ export function useCreateOffer() {
   });
 }
 
-/** Offer 审批动作：通过 / 驳回（驳回原因必填） */
+/** Offer 审批动作：通过（定薪必填）/ 驳回（原因必填） */
 export function useDecideOffer() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, decision, reason }: { id: string; decision: 'approve' | 'reject'; reason?: string }) =>
-      request(() => api.decideOffer(id, decision, reason)),
+    mutationFn: ({
+      id,
+      decision,
+      salary,
+      reason,
+    }: {
+      id: string;
+      decision: 'approve' | 'reject';
+      salary?: string;
+      reason?: string;
+    }) => request(() => api.decideOffer(id, decision, { salary, reason })),
     onSuccess: (updated) => {
       queryClient.invalidateQueries({ queryKey: ['applications'] });
       queryClient.invalidateQueries({ queryKey: ['application', updated.id] });

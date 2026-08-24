@@ -132,6 +132,9 @@ export function MatchDrawer({ open, application, onClose, onStageChange }: Match
   // ===== Offer 驳回原因弹窗 =====
   const [offerRejectOpen, setOfferRejectOpen] = useState(false);
   const [offerRejectForm] = Form.useForm();
+  // ===== Offer 审批通过弹窗（最终薪资由部门负责人确定） =====
+  const [offerApproveOpen, setOfferApproveOpen] = useState(false);
+  const [offerApproveForm] = Form.useForm();
 
   // 打开时拉取最新详情（含简历原文 resumeText，后端若未返回则回退为列表数据）
   const { data: detail } = useApplicationDetail(application?.id ?? '', open);
@@ -197,12 +200,25 @@ export function MatchDrawer({ open, application, onClose, onStageChange }: Match
     (user.role === 'admin' || user.role === 'hiring_manager') &&
     offer.requestedByName !== user.name;
 
-  /** Offer 审批通过 */
-  const approveOffer = async () => {
+  /** Offer 审批通过（打开定薪弹窗：薪资由部门负责人确定） */
+  const openOfferApprove = () => {
+    offerApproveForm.setFieldsValue({ salary: offer?.salary ?? '' });
+    setOfferApproveOpen(true);
+  };
+
+  const confirmOfferApprove = async () => {
     if (!app) return;
+    let salary = '';
     try {
-      await decideOfferMutation.mutateAsync({ id: app.id, decision: 'approve' });
+      const values = await offerApproveForm.validateFields();
+      salary = values.salary as string;
+    } catch {
+      return; // 表单校验未通过，Modal 内已有必填提示
+    }
+    try {
+      await decideOfferMutation.mutateAsync({ id: app.id, decision: 'approve', salary });
       message.success('Offer 审批已通过');
+      setOfferApproveOpen(false);
     } catch (err) {
       message.error(errorMessage(err, '审批失败'));
     }
@@ -367,9 +383,9 @@ export function MatchDrawer({ open, application, onClose, onStageChange }: Match
                     <Button
                       type="primary"
                       loading={decideOfferMutation.isPending}
-                      onClick={approveOffer}
+                      onClick={openOfferApprove}
                     >
-                      通过
+                      通过并确定薪资
                     </Button>
                     <Button
                       danger
@@ -654,7 +670,7 @@ export function MatchDrawer({ open, application, onClose, onStageChange }: Match
         destroyOnHidden
       >
         <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
-          确认驳回候选人「{app?.candidateName ?? ''}」的 Offer 审批？驳回后候选人将回到面试环节。
+          确认驳回候选人「{app?.candidateName ?? ''}」的 Offer 审批？驳回后候选人将回到部门负责人面环节。
         </Typography.Paragraph>
         <Form form={offerRejectForm} layout="vertical">
           <Form.Item
@@ -663,6 +679,32 @@ export function MatchDrawer({ open, application, onClose, onStageChange }: Match
             rules={[{ required: true, whitespace: true, message: '请填写驳回原因' }]}
           >
             <Input.TextArea rows={3} placeholder="请填写驳回原因（必填）" maxLength={500} showCount />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Offer 审批通过弹窗（最终薪资由部门负责人确定，必填） */}
+      <Modal
+        title="通过 Offer 审批 · 确定最终薪资"
+        open={offerApproveOpen}
+        onOk={confirmOfferApprove}
+        onCancel={() => setOfferApproveOpen(false)}
+        okText="通过并确定薪资"
+        cancelText="取消"
+        confirmLoading={decideOfferMutation.isPending}
+        destroyOnHidden
+      >
+        <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
+          薪资由部门负责人决定。请在下方填写候选人「{app?.candidateName ?? ''}」的最终薪资
+          {offer?.salary ? `（HR 建议：${offer.salary}）` : ''}。
+        </Typography.Paragraph>
+        <Form form={offerApproveForm} layout="vertical">
+          <Form.Item
+            name="salary"
+            label="最终薪资（千元/月）"
+            rules={[{ required: true, whitespace: true, message: '请填写最终薪资' }]}
+          >
+            <Input placeholder="如：25" />
           </Form.Item>
         </Form>
       </Modal>

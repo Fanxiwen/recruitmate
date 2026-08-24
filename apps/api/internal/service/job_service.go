@@ -482,7 +482,8 @@ func (s *JobService) SetStage(ctx context.Context, actor *Actor, appID, stage, r
 	return updated, nil
 }
 
-// OfferRequest HR/管理员发起 Offer 审批（候选人须处于 interview 阶段）。
+// OfferRequest HR/管理员发起 Offer 审批（候选人须处于部门负责人面阶段；
+// salary 仅为建议薪资，最终薪资由部门负责人审批时确定）。
 func (s *JobService) OfferRequest(ctx context.Context, actor *Actor, appID, salary, joinDate, note string) (*domain.Offer, error) {
 	if actor == nil {
 		return nil, domain.NewError(401, domain.CodeUnauthorized, "未登录")
@@ -494,8 +495,8 @@ func (s *JobService) OfferRequest(ctx context.Context, actor *Actor, appID, sala
 	if err != nil {
 		return nil, err
 	}
-	if app.Stage != string(domain.StageInterview) {
-		return nil, domain.NewError(409, domain.CodeConflict, "仅「面试中」的候选人可发起 Offer 审批")
+	if app.Stage != string(domain.StageManagerInterview) {
+		return nil, domain.NewError(409, domain.CodeConflict, "仅「部门负责人面」的候选人可发起 Offer 审批")
 	}
 	offer := &domain.Offer{Salary: strings.TrimSpace(salary), JoinDate: strings.TrimSpace(joinDate), Note: strings.TrimSpace(note)}
 	offer, err = s.Apps.CreateOffer(ctx, offer, appID, actor.UserID)
@@ -510,21 +511,21 @@ func (s *JobService) OfferRequest(ctx context.Context, actor *Actor, appID, sala
 	return offer, nil
 }
 
-// OfferApprove / OfferReject 部门负责人或管理员审批 Offer（四眼：发起人不能自批）。
-func (s *JobService) OfferApprove(ctx context.Context, actor *Actor, appID string) (*domain.ApplicationInternal, error) {
-	return s.decideOffer(ctx, actor, appID, "approved", "", true)
+// OfferApprove 部门负责人或管理员审批通过 Offer：确定最终薪资（必填）。
+func (s *JobService) OfferApprove(ctx context.Context, actor *Actor, appID, salary string) (*domain.ApplicationInternal, error) {
+	return s.decideOffer(ctx, actor, appID, "approved", salary, "", true)
 }
 
-// OfferReject 驳回 Offer（必填原因），候选人回退到 interview。
+// OfferReject 驳回 Offer（必填原因），候选人回退到部门负责人面。
 func (s *JobService) OfferReject(ctx context.Context, actor *Actor, appID, reason string) (*domain.ApplicationInternal, error) {
 	reason = strings.TrimSpace(reason)
 	if reason == "" {
 		return nil, domain.NewError(400, domain.CodeBadRequest, "请填写驳回原因")
 	}
-	return s.decideOffer(ctx, actor, appID, "rejected", reason, false)
+	return s.decideOffer(ctx, actor, appID, "rejected", "", reason, false)
 }
 
-func (s *JobService) decideOffer(ctx context.Context, actor *Actor, appID, decision, reason string, approve bool) (*domain.ApplicationInternal, error) {
+func (s *JobService) decideOffer(ctx context.Context, actor *Actor, appID, decision, salary, reason string, approve bool) (*domain.ApplicationInternal, error) {
 	if actor == nil {
 		return nil, domain.NewError(401, domain.CodeUnauthorized, "未登录")
 	}
@@ -551,8 +552,16 @@ func (s *JobService) decideOffer(ctx context.Context, actor *Actor, appID, decis
 	if requestedBy == actor.UserID && !actor.isAdmin() {
 		return nil, domain.NewError(403, domain.CodeForbidden, "不能审批自己发起的 Offer（请由部门负责人或管理员审批）")
 	}
+	// 薪资由部门负责人决定：审批通过时必填最终薪资
+	finalSalary := ""
+	if approve {
+		finalSalary = strings.TrimSpace(salary)
+		if finalSalary == "" {
+			return nil, domain.NewError(400, domain.CodeBadRequest, "请填写最终薪资（薪资由部门负责人确定）")
+		}
+	}
 
-	if err := s.Apps.DecideOffer(ctx, offer.ID, decision, actor.UserID); err != nil {
+	if err := s.Apps.DecideOffer(ctx, offer.ID, decision, actor.UserID, finalSalary); err != nil {
 		if err == repo.ErrNotFound {
 			return nil, domain.NewError(409, domain.CodeConflict, "Offer 已被处理")
 		}
@@ -563,7 +572,7 @@ func (s *JobService) decideOffer(ctx context.Context, actor *Actor, appID, decis
 	if approve {
 		targetStage, action = string(domain.StageOffered), "offer_approve"
 	} else {
-		targetStage, action = string(domain.StageInterview), "offer_reject"
+		targetStage, action = string(domain.StageManagerInterview), "offer_reject"
 	}
 	if err := s.Apps.UpdateStage(ctx, appID, targetStage, reason); err != nil {
 		return nil, domain.WrapError(500, domain.CodeInternal, "更新阶段失败", err)
@@ -591,8 +600,9 @@ func (s *JobService) recordEvent(ctx context.Context, appID, fromStage, toStage,
 // stageLabel 阶段中文名（错误提示用）。
 func stageLabel(stage string) string {
 	labels := map[string]string{
-		"new": "新简历", "screening": "初筛通过", "interview": "面试中",
-		"offer_pending": "Offer审批中", "offered": "已发Offer", "hired": "已入职", "rejected": "已淘汰",
+		"new": "新简历", "screening": "初筛通过", "interview": "HR初面",
+		"manager_interview": "部门负责人面", "offer_pending": "Offer审批中",
+		"offered": "已发Offer", "hired": "已入职", "rejected": "已淘汰",
 	}
 	if l, ok := labels[stage]; ok {
 		return l

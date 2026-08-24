@@ -28,6 +28,7 @@ export type ApplicationStage =
   | 'new'
   | 'screening'
   | 'interview'
+  | 'manager_interview'
   | 'offer_pending'
   | 'offered'
   | 'hired'
@@ -60,7 +61,8 @@ export const JOB_STATUS_LABELS: Record<JobStatus, string> = {
 export const STAGE_LABELS: Record<ApplicationStage, string> = {
   new: '新简历',
   screening: '初筛通过',
-  interview: '面试中',
+  interview: 'HR初面',
+  manager_interview: '部门负责人面',
   offer_pending: 'Offer审批中',
   offered: '已发Offer',
   hired: '已入职',
@@ -69,13 +71,16 @@ export const STAGE_LABELS: Record<ApplicationStage, string> = {
 
 /**
  * 阶段流转状态机（服务端强制，前端据此禁用非法流转）。
+ * 面试分两轮：HR 初面 → 部门负责人面；Offer 由 HR 发起，
+ * 部门负责人审批并确定最终薪资；驳回回退部门负责人面。
  * rejected → new 为「误杀恢复」，仅限 HR 手动执行并填写原因。
  */
 export const STAGE_TRANSITIONS: Record<ApplicationStage, ApplicationStage[]> = {
   new: ['screening', 'rejected'],
   screening: ['interview', 'rejected'],
-  interview: ['offer_pending', 'rejected'],
-  offer_pending: ['offered', 'interview'], // 通过 Offer 审批接口流转
+  interview: ['manager_interview', 'rejected'],
+  manager_interview: ['offer_pending', 'rejected'],
+  offer_pending: ['offered', 'manager_interview'], // 通过 Offer 审批接口流转
   offered: ['hired', 'rejected'],
   hired: [],
   rejected: ['new'],
@@ -343,14 +348,15 @@ export interface SetStageRequest {
   reason?: string;
 }
 
-/** 发起 Offer 审批请求 */
+/** 发起 Offer 审批请求（salary 为建议薪资，最终薪资由部门负责人审批时确定） */
 export interface OfferRequest {
   salary?: string;
   joinDate?: string;
   note?: string;
 }
 
-/** 审批动作请求 */
+/** 审批动作请求（通过时 salary 为最终薪资，必填） */
 export interface OfferDecisionRequest {
+  salary?: string;
   reason?: string;
 }

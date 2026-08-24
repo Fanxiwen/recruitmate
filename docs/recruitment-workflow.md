@@ -24,30 +24,31 @@
   → 通过（open，发布到外部端）/ 驳回（回 draft，需原因）
 ```
 
-## 三、候选人流程（7 阶段状态机）
+## 三、候选人流程（8 阶段状态机）
 
 | 阶段 | 含义 | 谁操作 | 合法流转 |
 |---|---|---|---|
 | `new` | 新简历（待初筛） | HR | → screening / rejected |
 | `screening` | 初筛通过 | HR | → interview / rejected |
-| `interview` | 面试中 | HR（记录评价） | → offer_pending / rejected |
-| `offer_pending` | Offer 审批中 | 部门负责人/管理员审批 | → offered（通过）/ interview（驳回） |
+| `interview` | HR 初面 | HR（记录评价） | → manager_interview / rejected |
+| `manager_interview` | 部门负责人面 | HR（记录评价） | → offer_pending / rejected |
+| `offer_pending` | Offer 审批中 | 部门负责人/管理员审批 | → offered（通过）/ manager_interview（驳回） |
 | `offered` | 已发 Offer | HR | → hired / rejected |
 | `hired` | 已入职 | HR | 终态 |
 | `rejected` | 已淘汰 | HR | → new（误杀恢复，需原因） |
 
 约束：
-- 转 `rejected` **必须填淘汰原因**；
-- 进 `interview` 建议填面试安排/评价（记录在时间线）；
-- Offer 审批：HR/管理员发起（薪资、入职时间、备注），审批人=**本部门负责人或管理员，且不能是发起人**；驳回回退 `interview` 并记录原因。
+- **面试分两轮**：HR 初面 → 部门负责人面，不能跳轮次；
+- 转 `rejected` **必须填淘汰原因**；进面试轮次建议填评价（记录在时间线）；
+- Offer 审批：HR/管理员发起（建议薪资、入职时间、备注），审批人=**本部门负责人或管理员，且不能是发起人**；**审批通过时由部门负责人确定最终薪资（必填）**；驳回回退 `manager_interview` 并记录原因。
 
-## 四、Offer 审批链
+## 四、Offer 审批链（薪资由部门负责人决定）
 
 ```
-HR 发起 Offer（offer_pending）
+HR 发起 Offer（offer_pending，建议薪资可选）
   → 部门负责人 / 管理员审批
-     ├─ 通过 → offered（候选人可见：Offer 待确认）
-     └─ 驳回（原因）→ interview（回到面试环节）
+     ├─ 通过（确定最终薪资，必填）→ offered（候选人可见：Offer 待确认）
+     └─ 驳回（原因）→ manager_interview（回到部门负责人面）
 ```
 
 ## 五、求职者可见状态映射（不暴露内部细节）
@@ -56,7 +57,7 @@ HR 发起 Offer（offer_pending）
 |---|---|
 | new | 已投递，处理中 |
 | screening | 初筛通过 |
-| interview | 面试邀请 |
+| interview / manager_interview | 面试邀请（两轮面试统一展示） |
 | offer_pending / offered | Offer 沟通中 |
 | hired | 已入职 |
 | rejected | 未通过（不显示内部原因） |
