@@ -72,7 +72,7 @@ export function HomePage() {
       {/* ============ Hero：机构主张 + 大搜索框 ============ */}
       <section className="hero-texture relative overflow-hidden bg-gradient-to-b from-brand-800 via-brand-700 to-brand-600">
         <div className="mx-auto max-w-4xl px-4 pb-14 pt-14 text-center sm:pb-18 sm:pt-20">
-          <span className="badge border border-gold-400/40 bg-gold-400/15 text-gold-200">
+          <span className="badge border border-gold-300/60 bg-gold-400/25 text-gold-100">
             中国-葡语（西语）国家经济贸易服务中心
           </span>
           <h1 className="mt-5 text-3xl font-bold leading-snug tracking-tight text-white sm:text-5xl">
@@ -80,10 +80,10 @@ export function HomePage() {
             <br className="sm:hidden" />
             共筑经贸桥梁
           </h1>
-          <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-brand-100 sm:text-lg">
-            中葡经贸中心致力于推动中国与葡语（西语）国家在经贸、投资与人才领域的深度合作。加入我们，成为跨文化交流的桥梁。
+          <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-white/95 sm:text-lg">
+            依托「澳门＋横琴」战略新定位，搭建连接中国与葡语（西语）国家的「一站式」综合服务平台，深化双方经贸合作。
           </p>
-          <p className="mt-3 text-sm font-medium tracking-[0.35em] text-gold-300">
+          <p className="mt-3 text-sm font-medium tracking-[0.35em] text-gold-200">
             CONECTAR · COOPERAR · CRESCER
           </p>
           <div className="relative mx-auto mt-8 max-w-xl">
@@ -96,9 +96,34 @@ export function HomePage() {
               aria-label="搜索岗位"
             />
           </div>
-          <p className="mt-3 text-xs text-brand-200">支持按关键词、部门、职位类型筛选岗位</p>
+          <p className="mt-3 text-xs font-medium text-brand-100">支持按关键词、部门、职位类型筛选岗位</p>
         </div>
         <div className="azulejo-band" />
+      </section>
+
+      {/* ============ 关于我们：官方机构简介 ============ */}
+      <section className="border-b border-slate-100 bg-white">
+        <div className="mx-auto max-w-4xl px-4 py-12 sm:py-14">
+          <div className="card border-l-4 border-l-gold-500 p-6 sm:p-8">
+            <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900 sm:text-xl">
+              关于中葡经贸中心
+              <span className="h-px flex-1 bg-gradient-to-r from-gold-400/60 to-transparent" />
+            </h2>
+            <p className="mt-4 text-[15px] leading-relaxed text-slate-700">
+              中国-葡语（西语）国家经济贸易服务中心（中葡经贸中心）是在国家有关部委及广东省指导支持下，由澳门特别行政区政府和横琴粤澳深度合作区执行委员会共同发起成立的。
+            </p>
+            <p className="mt-3 text-[15px] leading-relaxed text-slate-700">
+              中葡经贸中心旨在落实“澳门＋横琴”战略新定位，发挥澳门作为对葡语（西语）国家“精准联系人”作用，依托“澳门＋横琴”政策优势、开放优势、创新优势和区位优势等，广泛汇聚中国、葡语（西语）国家的政府、产业企业、专业服务机构等多方资源，搭建连接中国与葡语（西语）国家的“一站式”综合服务平台，为有关市场主体提供精准、高效的服务，深化中国与葡语（西语）国家的经贸合作关系。
+            </p>
+            <div className="mt-5 flex flex-wrap gap-2">
+              {['澳门＋横琴 战略定位', '对葡语国家精准联系人', '一站式综合服务平台'].map((t) => (
+                <span key={t} className="tag bg-brand-50 text-brand-700">
+                  {t}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
       </section>
 
       {/* ============ 品牌价值主张 ============ */}
@@ -127,7 +152,7 @@ export function HomePage() {
               </span>
               <div>
                 <h3 className="text-sm font-semibold text-slate-900">{item.title}</h3>
-                <p className="mt-1 text-xs leading-relaxed text-slate-500">{item.desc}</p>
+                <p className="mt-1 text-xs leading-relaxed text-slate-600">{item.desc}</p>
               </div>
             </div>
           ))}
