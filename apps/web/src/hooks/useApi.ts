@@ -83,6 +83,15 @@ export function useApprovalOffers(page = 1, pageSize = 20) {
   });
 }
 
+/** 待处理（新简历）列表：30s 轮询，投递后 HR 能及时看到 */
+export function usePendingApplications(page = 1, pageSize = 20) {
+  return useQuery({
+    queryKey: ['applications', 'pending', page, pageSize],
+    queryFn: () => request(() => api.listPendingApplications(page, pageSize)),
+    refetchInterval: 30_000,
+  });
+}
+
 /** 单个岗位详情 */
 export function useJob(id: string) {
   return useQuery({

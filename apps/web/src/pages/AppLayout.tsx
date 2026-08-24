@@ -7,7 +7,7 @@ import {
 } from '@ant-design/icons';
 import { Badge, Button, Layout, Menu, Popconfirm, Space, Tag, message } from 'antd';
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { useApprovalOffers, usePendingCount } from '../hooks/useApi';
+import { useApprovalOffers, usePendingApplications, usePendingCount } from '../hooks/useApi';
 import { ROLE_LABELS } from '../lib/format';
 import { useAuthStore } from '../stores/auth';
 
@@ -32,11 +32,13 @@ export function AppLayout() {
   const user = useAuthStore((s) => s.user);
   const { data: pending } = usePendingCount();
   const { data: pendingOffers } = useApprovalOffers(1, 1);
+  const { data: pendingApps } = usePendingApplications(1, 1);
 
   // 认证守卫：无 token 或用户信息时回登录页
   if (!token || !user) return <Navigate to="/login" replace />;
 
   const pendingCount = (pending?.total ?? 0) + (pendingOffers?.total ?? 0);
+  const pendingAppCount = pendingApps?.total ?? 0;
 
   const handleLogout = () => {
     useAuthStore.getState().logout();
@@ -54,7 +56,12 @@ export function AppLayout() {
     {
       key: '/jobs',
       icon: <AppstoreOutlined />,
-      label: '岗位管理',
+      label: (
+        <Space size={6}>
+          岗位管理
+          {pendingAppCount > 0 && <Badge count={pendingAppCount} size="small" />}
+        </Space>
+      ),
       onClick: () => navigate('/jobs'),
     },
     {

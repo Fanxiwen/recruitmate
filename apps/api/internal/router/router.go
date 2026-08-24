@@ -67,6 +67,7 @@ func New(d Deps) *gin.Engine {
 			authGroup.GET("/jobs/:id/applications", d.InternalJobs.ListApplications)
 			authGroup.GET("/jobs/:id/stats", d.InternalJobs.Stats)
 
+			authGroup.GET("/applications/pending", d.InternalApps.Pending)
 			authGroup.GET("/applications/:id", d.InternalApps.Get)
 			authGroup.PATCH("/applications/:id/stage", d.InternalApps.SetStage)
 			authGroup.POST("/applications/batch", d.InternalApps.Batch)

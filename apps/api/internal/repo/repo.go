@@ -130,6 +130,8 @@ type ApplicationRepo interface {
 	ListApplicationEvents(ctx context.Context, applicationID string) ([]domain.ApplicationEvent, error)
 	// ListOfferPending 审批中心：Offer 待审批列表（deptID 非空时仅本部门）。
 	ListOfferPending(ctx context.Context, deptID *string, page, pageSize int) ([]domain.ApprovalOfferItem, int, error)
+	// ListPendingApplications 待处理（新简历）列表（deptID 非空时仅本部门）。
+	ListPendingApplications(ctx context.Context, deptID *string, page, pageSize int) ([]domain.ApplicationInternal, int, error)
 }
 
 // AuditLog 审计日志记录。

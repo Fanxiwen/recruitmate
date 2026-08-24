@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 
 	"github.com/Fanxiwen/recruitmate/apps/api/internal/domain"
 	"github.com/Fanxiwen/recruitmate/apps/api/internal/file"
@@ -122,4 +123,24 @@ func (h *InternalApplicationHandler) Resume(c *gin.Context) {
 	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename*=UTF-8''%s`, url.PathEscape(filename)))
 	c.Header("Cache-Control", "private, max-age=60")
 	c.Data(http.StatusOK, "application/octet-stream", data)
+}
+
+// Pending GET /api/v1/internal/applications/pending —— 待处理（新简历）列表。
+// 有人投递后 HR 在此集中初筛（按投递时间先进先出）。
+func (h *InternalApplicationHandler) Pending(c *gin.Context) {
+	actor := actorFromContext(c)
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "20"))
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+	result, err := h.Jobs.ListPendingApplications(c.Request.Context(), actor, page, pageSize)
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	respondJSON(c, http.StatusOK, result)
 }

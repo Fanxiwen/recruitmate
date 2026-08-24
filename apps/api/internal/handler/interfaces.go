@@ -63,4 +63,6 @@ type InternalJobService interface {
 	OfferReject(ctx context.Context, actor *service.Actor, appID, reason string) (*domain.ApplicationInternal, error)
 	// 审批中心
 	ListOfferApprovals(ctx context.Context, actor *service.Actor, page, pageSize int) (*domain.Paginated[domain.ApprovalOfferItem], error)
+	// 待处理（新简历）
+	ListPendingApplications(ctx context.Context, actor *service.Actor, page, pageSize int) (*domain.Paginated[domain.ApplicationInternal], error)
 }

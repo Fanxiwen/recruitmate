@@ -226,6 +226,13 @@ export class ApiClient {
     return this.request<Paginated<ApprovalOfferItem>>(`/internal/approvals/offers?page=${page}&pageSize=${pageSize}`);
   }
 
+  /** 待处理（新简历）列表：有人投递后 HR 在此集中初筛 */
+  listPendingApplications(page = 1, pageSize = 20): Promise<Paginated<ApplicationInternal>> {
+    return this.request<Paginated<ApplicationInternal>>(
+      `/internal/applications/pending?page=${page}&pageSize=${pageSize}`,
+    );
+  }
+
   batchAction(body: BatchActionRequest): Promise<{ updated: number }> {
     return this.request<{ updated: number }>('/internal/applications/batch', {
       method: 'POST',

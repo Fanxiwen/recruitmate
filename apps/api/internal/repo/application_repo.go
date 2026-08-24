@@ -450,6 +450,36 @@ func nullableStringPtr(s *string) any {
 	return *s
 }
 
+// ListPendingApplications 待处理候选人列表（stage=new，按投递时间先进先出；
+// deptID 非空时仅本部门，供 hiring_manager 隔离）。
+func (s *ApplicationStore) ListPendingApplications(ctx context.Context, deptID *string, page, pageSize int) ([]domain.ApplicationInternal, int, error) {
+	where := ` WHERE a.stage = 'new' AND ($1::uuid IS NULL OR j.department_id = $1)`
+	args := []any{nullableStringPtr(deptID)}
+
+	var total int
+	if err := s.pool.QueryRow(ctx, `
+SELECT COUNT(*) FROM applications a JOIN job_postings j ON j.id = a.job_id`+where, args...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	args = append(args, pageSize, (page-1)*pageSize)
+	rows, err := s.pool.Query(ctx, appInternalSelect+where+` ORDER BY a.submitted_at ASC LIMIT $2 OFFSET $3`, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	out := make([]domain.ApplicationInternal, 0)
+	for rows.Next() {
+		a, err := scanApplicationInternal(rows)
+		if err != nil {
+			return nil, 0, err
+		}
+		out = append(out, *a)
+	}
+	return out, total, rows.Err()
+}
+
 // UpdateResumeFileKey 投递创建后写入简历文件 key。
 func (s *ApplicationStore) UpdateResumeFileKey(ctx context.Context, id, fileKey string) error {
 	_, err := s.pool.Exec(ctx, `UPDATE applications SET resume_file_key = $2 WHERE id = $1`, id, fileKey)

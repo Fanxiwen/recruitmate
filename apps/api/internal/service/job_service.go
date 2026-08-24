@@ -681,6 +681,23 @@ func (s *JobService) ListOfferApprovals(ctx context.Context, actor *Actor, page,
 	return &domain.Paginated[domain.ApprovalOfferItem]{Items: items, Total: total, Page: page, PageSize: pageSize}, nil
 }
 
+// ListPendingApplications 待处理候选人列表（stage=new 新简历；
+// hiring_manager 仅本部门）。投递后 HR 在此集中初筛。
+func (s *JobService) ListPendingApplications(ctx context.Context, actor *Actor, page, pageSize int) (*domain.Paginated[domain.ApplicationInternal], error) {
+	if actor == nil {
+		return nil, domain.NewError(401, domain.CodeUnauthorized, "未登录")
+	}
+	var deptID *string
+	if actor.isHiringManager() {
+		deptID = actor.DepID
+	}
+	items, total, err := s.Apps.ListPendingApplications(ctx, deptID, page, pageSize)
+	if err != nil {
+		return nil, domain.WrapError(500, domain.CodeInternal, "查询待处理候选人失败", err)
+	}
+	return &domain.Paginated[domain.ApplicationInternal]{Items: items, Total: total, Page: page, PageSize: pageSize}, nil
+}
+
 // maybeCloseIfFilled 入职人数达到岗位需求数时自动关闭岗位（招聘进度推进）。
 func (s *JobService) maybeCloseIfFilled(ctx context.Context, jobID string) {
 	job, err := s.Jobs.Get(ctx, jobID)
