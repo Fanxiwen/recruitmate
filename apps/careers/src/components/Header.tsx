@@ -7,7 +7,7 @@ export function Header() {
     <header className="sticky top-0 z-40 border-b border-slate-200/70 bg-white/85 backdrop-blur">
       <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4 sm:h-16">
         <Link to="/" className="flex min-w-0 items-center gap-2.5" aria-label="中葡经贸中心 人才招聘首页">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-brand-700 to-brand-500 text-gold-300 shadow-sm sm:h-9 sm:w-9">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-brand-700 to-brand-500 text-gold-300 shadow-sm transition-transform duration-300 hover:-rotate-6 hover:scale-105 sm:h-9 sm:w-9">
             <GlobeIcon className="h-4 w-4 sm:h-5 sm:w-5" />
           </span>
           <span className="truncate text-base font-bold tracking-tight text-slate-900 sm:text-lg">

@@ -20,7 +20,7 @@ export function JobCard({ job }: JobCardProps) {
   return (
     <Link
       to={`/jobs/${job.id}`}
-      className="group card block p-5 transition duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-200/80 sm:p-6"
+      className="group card block p-5 transition duration-300 hover:-translate-y-1 hover:border-brand-200 hover:shadow-xl hover:shadow-brand-100/70 sm:p-6"
     >
       {/* 标题 + 类型 */}
       <div className="flex items-start justify-between gap-3">
@@ -52,7 +52,10 @@ export function JobCard({ job }: JobCardProps) {
       {skills.length > 0 && (
         <div className="mt-3.5 flex flex-wrap gap-1.5">
           {skills.slice(0, 4).map((skill) => (
-            <span key={skill} className="tag bg-slate-100 text-slate-600">
+            <span
+              key={skill}
+              className="tag bg-slate-100 text-slate-600 transition-colors duration-300 group-hover:bg-brand-50 group-hover:text-brand-700"
+            >
               {skill}
             </span>
           ))}

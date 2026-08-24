@@ -75,6 +75,7 @@ export function AppLayout() {
     <Layout style={{ minHeight: '100vh' }}>
       <Sider width={216} theme="dark" breakpoint="lg" collapsedWidth={64}>
         <div
+          className="brand-logo"
           style={{
             height: 56,
             display: 'flex',
@@ -141,7 +142,9 @@ export function AppLayout() {
           </Space>
         </Header>
         <Content style={{ padding: 24, overflow: 'auto' }}>
-          <Outlet />
+          <div key={location.pathname} className="page-enter">
+            <Outlet />
+          </div>
         </Content>
       </Layout>
     </Layout>

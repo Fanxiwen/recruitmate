@@ -102,3 +102,97 @@
       radial-gradient(circle at 12% 88%, rgba(255, 255, 255, 0.06) 0 140px, transparent 320px);
   }
 }
+
+/* ============================================================
+ * 动效系统：入场 / 悬浮 / 流动 / 光晕
+ * 全部纯 CSS，尊重 prefers-reduced-motion（无障碍降级）。
+ * ============================================================ */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes float-slow {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-14px) scale(1.06);
+  }
+}
+
+@keyframes azulejo-pan {
+  from {
+    background-position-x: 0;
+  }
+  to {
+    background-position-x: 280px;
+  }
+}
+
+@keyframes glow-pulse {
+  0%,
+  100% {
+    box-shadow: 0 10px 30px rgba(12, 56, 36, 0.18), 0 0 0 4px rgba(201, 162, 39, 0.12);
+  }
+  50% {
+    box-shadow: 0 14px 38px rgba(12, 56, 36, 0.26), 0 0 0 7px rgba(201, 162, 39, 0.22);
+  }
+}
+
+@layer utilities {
+  /* Hero 交错入场：delay-* 由行内样式或附加类提供 */
+  .animate-rise {
+    animation: rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .animate-float-slow {
+    animation: float-slow 9s ease-in-out infinite;
+  }
+  .animate-azulejo {
+    animation: azulejo-pan 36s linear infinite;
+  }
+  /* 搜索框聚焦光晕（容器 :focus-within 触发） */
+  .search-glow:focus-within {
+    animation: glow-pulse 2.6s ease-in-out infinite;
+    border-radius: 1rem;
+  }
+
+  /* 滚动渐显（配合 <Reveal/> 组件） */
+  .reveal {
+    opacity: 0;
+    transform: translateY(20px);
+    transition:
+      opacity 0.65s ease,
+      transform 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: opacity, transform;
+  }
+  .reveal-visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 无障碍：用户偏好减弱动效时全部关闭 */
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise,
+  .animate-float-slow,
+  .animate-azulejo,
+  .search-glow:focus-within {
+    animation: none !important;
+  }
+  .reveal {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+  html {
+    scroll-behavior: auto;
+  }
+}

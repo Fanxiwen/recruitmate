@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { JOB_TYPE_LABELS } from '@recruitmate/shared-types';
 import type { JobType } from '@recruitmate/shared-types';
 import { JobCard } from '../components/JobCard';
+import { Reveal } from '../components/Reveal';
 import {
   AlertIcon,
   BriefcaseIcon,
@@ -73,22 +74,44 @@ export function HomePage() {
       <section className="relative overflow-hidden bg-linear-to-b from-brand-800 via-brand-700 to-brand-600">
         {/* 纹样覆盖层独立于背景渐变，避免 background-image 相互覆盖 */}
         <div className="hero-texture pointer-events-none absolute inset-0" aria-hidden="true" />
+        {/* 悬浮光晕（缓慢漂移，增加空间感） */}
+        <div
+          className="animate-float-slow pointer-events-none absolute -top-10 right-[12%] h-56 w-56 rounded-full bg-gold-400/10 blur-3xl"
+          aria-hidden="true"
+        />
+        <div
+          className="animate-float-slow pointer-events-none absolute bottom-[-40px] left-[8%] h-64 w-64 rounded-full bg-white/5 blur-3xl"
+          style={{ animationDelay: '-4.5s' }}
+          aria-hidden="true"
+        />
         <div className="relative mx-auto max-w-4xl px-4 pb-14 pt-14 text-center sm:pb-18 sm:pt-20">
-          <span className="badge border border-gold-300/60 bg-gold-400/25 text-gold-100">
+          <span className="animate-rise badge border border-gold-300/60 bg-gold-400/25 text-gold-100">
             中国-葡语（西语）国家经济贸易服务中心
           </span>
-          <h1 className="mt-5 text-3xl font-bold leading-snug tracking-tight text-white sm:text-5xl">
+          <h1
+            className="animate-rise mt-5 text-3xl font-bold leading-snug tracking-tight text-white sm:text-5xl"
+            style={{ animationDelay: '90ms' }}
+          >
             连接中国与世界，
             <br className="sm:hidden" />
             共筑经贸桥梁
           </h1>
-          <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-white/95 sm:text-lg">
+          <p
+            className="animate-rise mx-auto mt-4 max-w-xl text-base leading-relaxed text-white/95 sm:text-lg"
+            style={{ animationDelay: '180ms' }}
+          >
             依托「澳门＋横琴」战略新定位，搭建连接中国与葡语（西语）国家的「一站式」综合服务平台，深化双方经贸合作。
           </p>
-          <p className="mt-3 text-sm font-medium tracking-[0.35em] text-gold-200">
+          <p
+            className="animate-rise mt-3 text-sm font-medium tracking-[0.35em] text-gold-200"
+            style={{ animationDelay: '270ms' }}
+          >
             CONECTAR · COOPERAR · CRESCER
           </p>
-          <div className="relative mx-auto mt-8 max-w-xl">
+          <div
+            className="animate-rise search-glow relative mx-auto mt-8 max-w-xl"
+            style={{ animationDelay: '360ms' }}
+          >
             <SearchIcon className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
             <input
               className="h-14 w-full rounded-2xl border border-white/20 bg-white pl-12 pr-4 text-base text-slate-900 shadow-xl shadow-brand-900/30 outline-none transition placeholder:text-slate-400 focus:ring-2 focus:ring-gold-400/70"
@@ -98,33 +121,40 @@ export function HomePage() {
               aria-label="搜索岗位"
             />
           </div>
-          <p className="mt-3 text-xs font-medium text-brand-100">支持按关键词、部门、职位类型筛选岗位</p>
+          <p
+            className="animate-rise mt-3 text-xs font-medium text-brand-100"
+            style={{ animationDelay: '450ms' }}
+          >
+            支持按关键词、部门、职位类型筛选岗位
+          </p>
         </div>
-        <div className="azulejo-band" />
+        <div className="azulejo-band animate-azulejo" />
       </section>
 
       {/* ============ 关于我们：官方机构简介 ============ */}
       <section className="border-b border-slate-100 bg-white">
         <div className="mx-auto max-w-4xl px-4 py-12 sm:py-14">
-          <div className="card border-l-4 border-l-gold-500 p-6 sm:p-8">
-            <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900 sm:text-xl">
-              关于中葡经贸中心
-              <span className="h-px flex-1 bg-linear-to-r from-gold-400/60 to-transparent" />
-            </h2>
-            <p className="mt-4 text-[15px] leading-relaxed text-slate-700">
-              中国-葡语（西语）国家经济贸易服务中心（中葡经贸中心）是在国家有关部委及广东省指导支持下，由澳门特别行政区政府和横琴粤澳深度合作区执行委员会共同发起成立的。
-            </p>
-            <p className="mt-3 text-[15px] leading-relaxed text-slate-700">
-              中葡经贸中心旨在落实“澳门＋横琴”战略新定位，发挥澳门作为对葡语（西语）国家“精准联系人”作用，依托“澳门＋横琴”政策优势、开放优势、创新优势和区位优势等，广泛汇聚中国、葡语（西语）国家的政府、产业企业、专业服务机构等多方资源，搭建连接中国与葡语（西语）国家的“一站式”综合服务平台，为有关市场主体提供精准、高效的服务，深化中国与葡语（西语）国家的经贸合作关系。
-            </p>
-            <div className="mt-5 flex flex-wrap gap-2">
-              {['澳门＋横琴 战略定位', '对葡语国家精准联系人', '一站式综合服务平台'].map((t) => (
-                <span key={t} className="tag bg-brand-50 text-brand-700">
-                  {t}
-                </span>
-              ))}
+          <Reveal>
+            <div className="card border-l-4 border-l-gold-500 p-6 sm:p-8">
+              <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900 sm:text-xl">
+                关于中葡经贸中心
+                <span className="h-px flex-1 bg-linear-to-r from-gold-400/60 to-transparent" />
+              </h2>
+              <p className="mt-4 text-[15px] leading-relaxed text-slate-700">
+                中国-葡语（西语）国家经济贸易服务中心（中葡经贸中心）是在国家有关部委及广东省指导支持下，由澳门特别行政区政府和横琴粤澳深度合作区执行委员会共同发起成立的。
+              </p>
+              <p className="mt-3 text-[15px] leading-relaxed text-slate-700">
+                中葡经贸中心旨在落实“澳门＋横琴”战略新定位，发挥澳门作为对葡语（西语）国家“精准联系人”作用，依托“澳门＋横琴”政策优势、开放优势、创新优势和区位优势等，广泛汇聚中国、葡语（西语）国家的政府、产业企业、专业服务机构等多方资源，搭建连接中国与葡语（西语）国家的“一站式”综合服务平台，为有关市场主体提供精准、高效的服务，深化中国与葡语（西语）国家的经贸合作关系。
+              </p>
+              <div className="mt-5 flex flex-wrap gap-2">
+                {['澳门＋横琴 战略定位', '对葡语国家精准联系人', '一站式综合服务平台'].map((t) => (
+                  <span key={t} className="tag bg-brand-50 text-brand-700">
+                    {t}
+                  </span>
+                ))}
+              </div>
             </div>
-          </div>
+          </Reveal>
         </div>
       </section>
 
@@ -147,16 +177,18 @@ export function HomePage() {
               title: '广阔成长',
               desc: '语言能力与专业能力并重，与机构共同成长。',
             },
-          ].map((item) => (
-            <div key={item.title} className="flex items-start gap-3">
-              <span className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-50">
-                {item.icon}
-              </span>
-              <div>
-                <h3 className="text-sm font-semibold text-slate-900">{item.title}</h3>
-                <p className="mt-1 text-xs leading-relaxed text-slate-600">{item.desc}</p>
+          ].map((item, i) => (
+            <Reveal key={item.title} delay={i * 90}>
+              <div className="flex items-start gap-3">
+                <span className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 transition-transform duration-300 hover:-translate-y-0.5 hover:rotate-3">
+                  {item.icon}
+                </span>
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900">{item.title}</h3>
+                  <p className="mt-1 text-xs leading-relaxed text-slate-600">{item.desc}</p>
+                </div>
               </div>
-            </div>
+            </Reveal>
           ))}
         </div>
       </section>
@@ -244,8 +276,10 @@ export function HomePage() {
           </div>
         ) : (
           <div className="mt-4 space-y-4">
-            {(jobsQuery.data.items ?? []).map((job) => (
-              <JobCard key={job.id} job={job} />
+            {(jobsQuery.data.items ?? []).map((job, i) => (
+              <Reveal key={job.id} delay={Math.min(i, 5) * 70}>
+                <JobCard job={job} />
+              </Reveal>
             ))}
           </div>
         )}
