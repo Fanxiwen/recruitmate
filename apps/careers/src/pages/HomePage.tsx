@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { JOB_TYPE_LABELS } from '@recruitmate/shared-types';
 import type { JobType } from '@recruitmate/shared-types';
 import { JobCard } from '../components/JobCard';
 import { Reveal } from '../components/Reveal';
 import {
   AlertIcon,
+  ArrowRightIcon,
   BriefcaseIcon,
   BuildingIcon,
   ChevronLeftIcon,
@@ -26,6 +27,8 @@ export function HomePage() {
   const [departmentId, setDepartmentId] = useState('');
   const [jobType, setJobType] = useState<'' | JobType>('');
   const [page, setPage] = useState(1);
+  // 搜索结果区锚点（搜索反馈与自动滚动）
+  const resultsRef = useRef<HTMLElement>(null);
 
   // 搜索防抖：停止输入 300ms 后再发请求
   useEffect(() => {
@@ -60,6 +63,25 @@ export function HomePage() {
   const total = jobsQuery.data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const hasFilter = Boolean(q || departmentId || jobType);
+
+  // 用户开始搜索/筛选时，滚动到结果区（等布局稳定后手动计算，避免与品牌区收起竞争）
+  const prevHasFilter = useRef(false);
+  useEffect(() => {
+    if (hasFilter && !prevHasFilter.current) {
+      const t = setTimeout(scrollToResults, 80);
+      return () => clearTimeout(t);
+    }
+    prevHasFilter.current = hasFilter;
+    return undefined;
+  }, [hasFilter]);
+
+  function scrollToResults() {
+    const el = resultsRef.current;
+    if (!el) return;
+    // 目标 = 结果区文档位置 - 顶部留白（sticky 导航约 64px + 呼吸空间）
+    const top = el.getBoundingClientRect().top + window.scrollY - 96;
+    window.scrollTo({ top: Math.max(top, 0), behavior: 'smooth' });
+  }
 
   function clearFilters() {
     setSearchInput('');
@@ -127,11 +149,36 @@ export function HomePage() {
           >
             支持按关键词、部门、职位类型筛选岗位
           </p>
+          {/* 搜索反馈：有筛选条件时即时展示结果数量，点击直达结果区 */}
+          {hasFilter && (
+            <button
+              type="button"
+              onClick={scrollToResults}
+              className="animate-rise mx-auto mt-3 inline-flex items-center gap-2 rounded-full border border-gold-300/40 bg-white/10 px-4 py-1.5 text-sm font-medium text-white backdrop-blur transition hover:bg-white/20"
+              style={{ animationDelay: '500ms' }}
+              aria-live="polite"
+            >
+              {jobsQuery.isFetching ? (
+                <span className="inline-flex items-center gap-2">
+                  <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gold-300/40 border-t-gold-300" />
+                  正在搜索…
+                </span>
+              ) : (
+                <>
+                  找到 <span className="font-bold text-gold-300">{total}</span> 个相关岗位
+                  <ArrowRightIcon className="h-4 w-4 rotate-90" />
+                </>
+              )}
+            </button>
+          )}
         </div>
         <div className="azulejo-band animate-azulejo" />
       </section>
 
-      {/* ============ 关于我们：官方机构简介 ============ */}
+      {/* ============ 品牌区（仅浏览态展示；搜索/筛选时收起，结果直达） ============ */}
+      {!hasFilter && (
+        <>
+          {/* ============ 关于我们：官方机构简介 ============ */}
       <section className="border-b border-slate-100 bg-white">
         <div className="mx-auto max-w-4xl px-4 py-12 sm:py-14">
           <Reveal>
@@ -192,8 +239,10 @@ export function HomePage() {
           ))}
         </div>
       </section>
+        </>
+      )}
 
-      <main className="mx-auto max-w-4xl px-4 pb-16">
+      <main ref={resultsRef} className="mx-auto max-w-4xl scroll-mt-20 px-4 pb-16">
         {/* ============ 筛选栏 ============ */}
         <div className="card mt-6 flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
           <label className="flex items-center gap-2 sm:w-52">
