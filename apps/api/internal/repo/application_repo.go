@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/Fanxiwen/recruitmate/apps/api/internal/domain"
 	"github.com/google/uuid"
@@ -90,7 +91,8 @@ SELECT a.id, a.job_id, j.title AS job_title,
        a.candidate_id, c.name AS candidate_name, c.email, c.phone,
        a.stage, a.source, a.submitted_at, a.match_score, a.hard_pass, a.parse_failed,
        a.parsed_resume, a.match_detail,
-       (a.resume_file_key IS NOT NULL AND a.resume_file_key <> '') AS has_resume_file
+       (a.resume_file_key IS NOT NULL AND a.resume_file_key <> '') AS has_resume_file,
+       a.reject_reason, a.interview_feedback
 FROM applications a
 JOIN candidates c ON c.id = a.candidate_id
 JOIN job_postings j ON j.id = a.job_id`
@@ -102,7 +104,8 @@ SELECT a.id, a.job_id, j.title AS job_title,
        a.stage, a.source, a.submitted_at, a.match_score, a.hard_pass, a.parse_failed,
        a.parsed_resume, a.match_detail,
        (a.resume_file_key IS NOT NULL AND a.resume_file_key <> '') AS has_resume_file,
-       COALESCE(a.resume_text, '')
+       COALESCE(a.resume_text, ''),
+       a.reject_reason, a.interview_feedback
 FROM applications a
 JOIN candidates c ON c.id = a.candidate_id
 JOIN job_postings j ON j.id = a.job_id`
@@ -114,7 +117,7 @@ func scanApplicationInternal(row pgx.Row) (*domain.ApplicationInternal, error) {
 	err := row.Scan(&a.ID, &a.JobID, &a.JobTitle,
 		&a.CandidateID, &a.CandidateName, &a.Email, &a.Phone,
 		&a.Stage, &a.Source, &a.SubmittedAt, &a.MatchScore, &a.HardPass, &a.ParseFailed,
-		&parsed, &detail, &a.HasResumeFile)
+		&parsed, &detail, &a.HasResumeFile, &a.RejectReason, &a.InterviewFeedback)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrNotFound
@@ -133,7 +136,7 @@ func scanApplicationInternalDetail(row pgx.Row) (*domain.ApplicationInternal, er
 	err := row.Scan(&a.ID, &a.JobID, &a.JobTitle,
 		&a.CandidateID, &a.CandidateName, &a.Email, &a.Phone,
 		&a.Stage, &a.Source, &a.SubmittedAt, &a.MatchScore, &a.HardPass, &a.ParseFailed,
-		&parsed, &detail, &a.HasResumeFile, &a.ResumeText)
+		&parsed, &detail, &a.HasResumeFile, &a.ResumeText, &a.RejectReason, &a.InterviewFeedback)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrNotFound
@@ -226,9 +229,22 @@ func (s *ApplicationStore) GetByID(ctx context.Context, id string) (*domain.Appl
 	return scanApplicationInternalDetail(s.pool.QueryRow(ctx, appInternalDetailSelect+` WHERE a.id = $1`, id))
 }
 
-// UpdateStage 更新流转阶段。
-func (s *ApplicationStore) UpdateStage(ctx context.Context, id, stage string) error {
-	tag, err := s.pool.Exec(ctx, `UPDATE applications SET stage = $2 WHERE id = $1`, id, stage)
+// UpdateStage 更新流转阶段（OA：转 rejected 记录淘汰原因；转 interview 且带备注时记录面试评价）。
+func (s *ApplicationStore) UpdateStage(ctx context.Context, id, stage, reason string) error {
+	rejectReason := ""
+	interviewFeedback := ""
+	if stage == string(domain.StageRejected) {
+		rejectReason = reason
+	}
+	if stage == string(domain.StageInterview) && reason != "" {
+		interviewFeedback = reason
+	}
+	tag, err := s.pool.Exec(ctx, `
+UPDATE applications SET
+  stage = $2,
+  reject_reason = CASE WHEN $3 <> '' THEN $3 ELSE reject_reason END,
+  interview_feedback = CASE WHEN $4 <> '' THEN $4 ELSE interview_feedback END
+WHERE id = $1`, id, stage, rejectReason, interviewFeedback)
 	if err != nil {
 		return fmt.Errorf("repo: update stage: %w", err)
 	}
@@ -236,6 +252,136 @@ func (s *ApplicationStore) UpdateStage(ctx context.Context, id, stage string) er
 		return ErrNotFound
 	}
 	return nil
+}
+
+// ============ Offer 审批 ============
+
+// CreateOffer 创建 Offer 审批单（状态 pending）。
+func (s *ApplicationStore) CreateOffer(ctx context.Context, o *domain.Offer, applicationID, requestedBy string) (*domain.Offer, error) {
+	err := s.pool.QueryRow(ctx, `
+INSERT INTO offers (id, application_id, salary, join_date, note, status, requested_by)
+VALUES (gen_random_uuid(), $1, $2, $3, $4, 'pending', $5)
+RETURNING id, status, requested_at`,
+		applicationID, o.Salary, o.JoinDate, o.Note, requestedBy).Scan(&o.ID, &o.Status, &o.RequestedAt)
+	if err != nil {
+		return nil, fmt.Errorf("repo: create offer: %w", err)
+	}
+	return o, nil
+}
+
+// GetPendingOfferByApplication 查询投递的待审批 Offer（无则 ErrNotFound）。
+func (s *ApplicationStore) GetPendingOfferByApplication(ctx context.Context, applicationID string) (*domain.Offer, error) {
+	var o domain.Offer
+	var decidedAt *time.Time
+	var requestedByName, decidedByName string
+	err := s.pool.QueryRow(ctx, `
+SELECT o.id, o.salary, o.join_date, o.note, o.status,
+       u1.name, COALESCE(u2.name, ''), o.requested_at, o.decided_at
+FROM offers o
+JOIN users u1 ON u1.id = o.requested_by
+LEFT JOIN users u2 ON u2.id = o.decided_by
+WHERE o.application_id = $1 AND o.status = 'pending'
+ORDER BY o.requested_at DESC LIMIT 1`,
+		applicationID).Scan(&o.ID, &o.Salary, &o.JoinDate, &o.Note, &o.Status,
+		&requestedByName, &decidedByName, &o.RequestedAt, &decidedAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	o.RequestedByName = requestedByName
+	o.DecidedByName = decidedByName
+	o.DecidedAt = decidedAt
+	return &o, nil
+}
+
+// GetLatestOfferByApplication 查询投递最近一次 Offer（任意状态；无则 ErrNotFound）。
+func (s *ApplicationStore) GetLatestOfferByApplication(ctx context.Context, applicationID string) (*domain.Offer, error) {
+	var o domain.Offer
+	var decidedAt *time.Time
+	var requestedByName, decidedByName string
+	err := s.pool.QueryRow(ctx, `
+SELECT o.id, o.salary, o.join_date, o.note, o.status,
+       u1.name, COALESCE(u2.name, ''), o.requested_at, o.decided_at
+FROM offers o
+JOIN users u1 ON u1.id = o.requested_by
+LEFT JOIN users u2 ON u2.id = o.decided_by
+WHERE o.application_id = $1
+ORDER BY o.requested_at DESC LIMIT 1`,
+		applicationID).Scan(&o.ID, &o.Salary, &o.JoinDate, &o.Note, &o.Status,
+		&requestedByName, &decidedByName, &o.RequestedAt, &decidedAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	o.RequestedByName = requestedByName
+	o.DecidedByName = decidedByName
+	o.DecidedAt = decidedAt
+	return &o, nil
+}
+
+// GetOfferRequestedBy 读取 Offer 发起人（四眼原则校验用）。
+func (s *ApplicationStore) GetOfferRequestedBy(ctx context.Context, offerID string) (string, error) {
+	var requestedBy string
+	err := s.pool.QueryRow(ctx, `SELECT requested_by FROM offers WHERE id = $1`, offerID).Scan(&requestedBy)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", ErrNotFound
+		}
+		return "", err
+	}
+	return requestedBy, nil
+}
+
+// DecideOffer 审批 Offer：通过（approved）/ 驳回（rejected）。
+func (s *ApplicationStore) DecideOffer(ctx context.Context, offerID, status, decidedBy string) error {
+	tag, err := s.pool.Exec(ctx, `
+UPDATE offers SET status = $2, decided_by = $3, decided_at = now() WHERE id = $1 AND status = 'pending'`,
+		offerID, status, decidedBy)
+	if err != nil {
+		return fmt.Errorf("repo: decide offer: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// ============ 流转时间线 ============
+
+// InsertApplicationEvent 写入流转事件。
+func (s *ApplicationStore) InsertApplicationEvent(ctx context.Context, applicationID, fromStage, toStage, action, actorID, actorName, reason string) error {
+	_, err := s.pool.Exec(ctx, `
+INSERT INTO application_events (application_id, from_stage, to_stage, action, actor_id, actor_name, reason)
+VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		applicationID, fromStage, toStage, action, nullableString(actorID), actorName, reason)
+	if err != nil {
+		return fmt.Errorf("repo: insert application event: %w", err)
+	}
+	return nil
+}
+
+// ListApplicationEvents 查询流转时间线（时间正序）。
+func (s *ApplicationStore) ListApplicationEvents(ctx context.Context, applicationID string) ([]domain.ApplicationEvent, error) {
+	rows, err := s.pool.Query(ctx, `
+SELECT id, from_stage, to_stage, action, COALESCE(actor_name, ''), reason, created_at
+FROM application_events WHERE application_id = $1 ORDER BY created_at ASC, id ASC`, applicationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]domain.ApplicationEvent, 0)
+	for rows.Next() {
+		var e domain.ApplicationEvent
+		if err := rows.Scan(&e.ID, &e.FromStage, &e.ToStage, &e.Action, &e.ActorName, &e.Reason, &e.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
 }
 
 // UpdateResumeFileKey 投递创建后写入简历文件 key。

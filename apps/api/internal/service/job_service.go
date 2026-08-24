@@ -268,6 +268,9 @@ func (s *JobService) transition(ctx context.Context, actor *Actor, id, action st
 		if !actor.isAdmin() && !(actor.isHiringManager() && actor.DepID != nil && *actor.DepID == job.DepartmentID) {
 			return nil, domain.NewError(403, domain.CodeForbidden, "仅管理员或本部门负责人可审批")
 		}
+		if job.OwnerID == actor.UserID && !actor.isAdmin() {
+			return nil, domain.NewError(403, domain.CodeForbidden, "不能审批自己提交的岗位（四眼原则）")
+		}
 		from, to = string(domain.JobStatusPending), string(domain.JobStatusOpen)
 	case "reject":
 		if job.Status != string(domain.JobStatusPending) {
@@ -275,6 +278,9 @@ func (s *JobService) transition(ctx context.Context, actor *Actor, id, action st
 		}
 		if !actor.isAdmin() && !(actor.isHiringManager() && actor.DepID != nil && *actor.DepID == job.DepartmentID) {
 			return nil, domain.NewError(403, domain.CodeForbidden, "仅管理员或本部门负责人可驳回")
+		}
+		if job.OwnerID == actor.UserID && !actor.isAdmin() {
+			return nil, domain.NewError(403, domain.CodeForbidden, "不能驳回自己提交的岗位（四眼原则）")
 		}
 		from, to = string(domain.JobStatusPending), string(domain.JobStatusDraft)
 	case "close":
@@ -417,18 +423,26 @@ func (s *JobService) ListApplications(ctx context.Context, actor *Actor, jobID s
 	return &domain.Paginated[domain.ApplicationInternal]{Items: items, Total: total, Page: page, PageSize: pageSize}, nil
 }
 
-// GetApplication 投递详情。
+// GetApplication 投递详情（含 Offer 审批单与流转时间线）。
 func (s *JobService) GetApplication(ctx context.Context, actor *Actor, appID string) (*domain.ApplicationInternal, error) {
 	app, err := s.requireApplicationAccess(ctx, actor, appID)
 	if err != nil {
 		return nil, err
 	}
+	// 最近一次 Offer（任意状态，便于展示历史）
+	if offer, err := s.Apps.GetLatestOfferByApplication(ctx, appID); err == nil {
+		app.Offer = offer
+	}
+	// 流转时间线
+	if events, err := s.Apps.ListApplicationEvents(ctx, appID); err == nil {
+		app.Events = events
+	}
 	s.audit(ctx, actor, "application.view", "application", appID, nil)
 	return app, nil
 }
 
-// SetStage 流转阶段（校验 stage 合法）。
-func (s *JobService) SetStage(ctx context.Context, actor *Actor, appID, stage string) (*domain.ApplicationInternal, error) {
+// SetStage 流转阶段（OA 状态机：非法流转拒绝；转 rejected 必填原因）。
+func (s *JobService) SetStage(ctx context.Context, actor *Actor, appID, stage, reason string) (*domain.ApplicationInternal, error) {
 	if !domain.ValidStages[domain.ApplicationStage(stage)] {
 		return nil, domain.NewError(400, domain.CodeBadRequest, "流转阶段不合法")
 	}
@@ -436,12 +450,30 @@ func (s *JobService) SetStage(ctx context.Context, actor *Actor, appID, stage st
 	if err != nil {
 		return nil, err
 	}
-	if err := s.Apps.UpdateStage(ctx, appID, stage); err != nil {
+	reason = strings.TrimSpace(reason)
+	if stage == string(domain.StageRejected) && reason == "" {
+		return nil, domain.NewError(400, domain.CodeBadRequest, "请填写淘汰原因")
+	}
+	if !domain.CanTransition(domain.ApplicationStage(app.Stage), domain.ApplicationStage(stage)) {
+		return nil, domain.NewError(409, domain.CodeConflict,
+			fmt.Sprintf("不允许从「%s」流转到「%s」（请按标准流程操作）", stageLabel(app.Stage), stageLabel(stage)))
+	}
+	// offer_pending 只能通过 Offer 审批接口流转，防止绕过审批链
+	if stage == string(domain.StageOffered) || stage == string(domain.StageOfferPending) {
+		return nil, domain.NewError(409, domain.CodeConflict, "Offer 阶段请通过 Offer 审批流程操作")
+	}
+
+	if err := s.Apps.UpdateStage(ctx, appID, stage, reason); err != nil {
 		if err == repo.ErrNotFound {
 			return nil, domain.NewError(404, domain.CodeNotFound, "投递记录不存在")
 		}
 		return nil, domain.WrapError(500, domain.CodeInternal, "更新阶段失败", err)
 	}
+	action := "stage_change"
+	if stage == string(domain.StageInterview) && reason != "" {
+		action = "feedback" // 进入面试且带备注 → 面试评价
+	}
+	s.recordEvent(ctx, appID, app.Stage, stage, action, actor, reason)
 	s.audit(ctx, actor, "application.stage", "application", appID, map[string]any{"from": app.Stage, "to": stage})
 	updated, err := s.Apps.GetByID(ctx, appID)
 	if err != nil {
@@ -450,8 +482,126 @@ func (s *JobService) SetStage(ctx context.Context, actor *Actor, appID, stage st
 	return updated, nil
 }
 
+// OfferRequest HR/管理员发起 Offer 审批（候选人须处于 interview 阶段）。
+func (s *JobService) OfferRequest(ctx context.Context, actor *Actor, appID, salary, joinDate, note string) (*domain.Offer, error) {
+	if actor == nil {
+		return nil, domain.NewError(401, domain.CodeUnauthorized, "未登录")
+	}
+	if !actor.isAdmin() && !actor.isHR() {
+		return nil, domain.NewError(403, domain.CodeForbidden, "仅 HR 或管理员可发起 Offer 审批")
+	}
+	app, err := s.requireApplicationAccess(ctx, actor, appID)
+	if err != nil {
+		return nil, err
+	}
+	if app.Stage != string(domain.StageInterview) {
+		return nil, domain.NewError(409, domain.CodeConflict, "仅「面试中」的候选人可发起 Offer 审批")
+	}
+	offer := &domain.Offer{Salary: strings.TrimSpace(salary), JoinDate: strings.TrimSpace(joinDate), Note: strings.TrimSpace(note)}
+	offer, err = s.Apps.CreateOffer(ctx, offer, appID, actor.UserID)
+	if err != nil {
+		return nil, domain.WrapError(500, domain.CodeInternal, "创建 Offer 失败", err)
+	}
+	if err := s.Apps.UpdateStage(ctx, appID, string(domain.StageOfferPending), ""); err != nil {
+		return nil, domain.WrapError(500, domain.CodeInternal, "更新阶段失败", err)
+	}
+	s.recordEvent(ctx, appID, app.Stage, string(domain.StageOfferPending), "offer_request", actor, note)
+	s.audit(ctx, actor, "application.offer.request", "application", appID, map[string]any{"offer_id": offer.ID})
+	return offer, nil
+}
+
+// OfferApprove / OfferReject 部门负责人或管理员审批 Offer（四眼：发起人不能自批）。
+func (s *JobService) OfferApprove(ctx context.Context, actor *Actor, appID string) (*domain.ApplicationInternal, error) {
+	return s.decideOffer(ctx, actor, appID, "approved", "", true)
+}
+
+// OfferReject 驳回 Offer（必填原因），候选人回退到 interview。
+func (s *JobService) OfferReject(ctx context.Context, actor *Actor, appID, reason string) (*domain.ApplicationInternal, error) {
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		return nil, domain.NewError(400, domain.CodeBadRequest, "请填写驳回原因")
+	}
+	return s.decideOffer(ctx, actor, appID, "rejected", reason, false)
+}
+
+func (s *JobService) decideOffer(ctx context.Context, actor *Actor, appID, decision, reason string, approve bool) (*domain.ApplicationInternal, error) {
+	if actor == nil {
+		return nil, domain.NewError(401, domain.CodeUnauthorized, "未登录")
+	}
+	app, err := s.requireApplicationAccess(ctx, actor, appID)
+	if err != nil {
+		return nil, err
+	}
+	offer, err := s.Apps.GetPendingOfferByApplication(ctx, appID)
+	if err != nil {
+		if err == repo.ErrNotFound {
+			return nil, domain.NewError(409, domain.CodeConflict, "该候选人没有待审批的 Offer")
+		}
+		return nil, domain.WrapError(500, domain.CodeInternal, "查询 Offer 失败", err)
+	}
+	// 审批权限：管理员或该岗位部门的负责人
+	if !actor.isAdmin() && !(actor.isHiringManager() && actor.DepID != nil) {
+		return nil, domain.NewError(403, domain.CodeForbidden, "仅管理员或部门负责人可审批 Offer")
+	}
+	// 四眼原则：发起人不能审批自己的 Offer
+	requestedBy, err := s.Apps.GetOfferRequestedBy(ctx, offer.ID)
+	if err != nil {
+		return nil, domain.WrapError(500, domain.CodeInternal, "读取 Offer 信息失败", err)
+	}
+	if requestedBy == actor.UserID && !actor.isAdmin() {
+		return nil, domain.NewError(403, domain.CodeForbidden, "不能审批自己发起的 Offer（请由部门负责人或管理员审批）")
+	}
+
+	if err := s.Apps.DecideOffer(ctx, offer.ID, decision, actor.UserID); err != nil {
+		if err == repo.ErrNotFound {
+			return nil, domain.NewError(409, domain.CodeConflict, "Offer 已被处理")
+		}
+		return nil, domain.WrapError(500, domain.CodeInternal, "审批 Offer 失败", err)
+	}
+
+	var targetStage, action string
+	if approve {
+		targetStage, action = string(domain.StageOffered), "offer_approve"
+	} else {
+		targetStage, action = string(domain.StageInterview), "offer_reject"
+	}
+	if err := s.Apps.UpdateStage(ctx, appID, targetStage, reason); err != nil {
+		return nil, domain.WrapError(500, domain.CodeInternal, "更新阶段失败", err)
+	}
+	s.recordEvent(ctx, appID, app.Stage, targetStage, action, actor, reason)
+	s.audit(ctx, actor, "application.offer."+decision, "application", appID, map[string]any{"offer_id": offer.ID})
+	updated, err := s.Apps.GetByID(ctx, appID)
+	if err != nil {
+		return nil, domain.WrapError(500, domain.CodeInternal, "读取投递失败", err)
+	}
+	return updated, nil
+}
+
+// recordEvent 写入流转时间线。
+func (s *JobService) recordEvent(ctx context.Context, appID, fromStage, toStage, action string, actor *Actor, reason string) {
+	actorID, actorName := "", ""
+	if actor != nil {
+		actorID, actorName = actor.UserID, actor.Name
+	}
+	if err := s.Apps.InsertApplicationEvent(ctx, appID, fromStage, toStage, action, actorID, actorName, reason); err != nil {
+		slog.Error("record application event failed", "application_id", appID, "error", err)
+	}
+}
+
+// stageLabel 阶段中文名（错误提示用）。
+func stageLabel(stage string) string {
+	labels := map[string]string{
+		"new": "新简历", "screening": "初筛通过", "interview": "面试中",
+		"offer_pending": "Offer审批中", "offered": "已发Offer", "hired": "已入职", "rejected": "已淘汰",
+	}
+	if l, ok := labels[stage]; ok {
+		return l
+	}
+	return stage
+}
+
 // Batch 批量操作：action=stage|reject|hired；越权 ids 拒绝，返回实际更新数。
-func (s *JobService) Batch(ctx context.Context, actor *Actor, ids []string, action, stage string) (int, error) {
+func (s *JobService) Batch(ctx context.Context, actor *Actor, ids []string, action, stage, reason string) (int, error) {
 	if actor == nil {
 		return 0, domain.NewError(401, domain.CodeUnauthorized, "未登录")
 	}
@@ -472,6 +622,10 @@ func (s *JobService) Batch(ctx context.Context, actor *Actor, ids []string, acti
 	default:
 		return 0, domain.NewError(400, domain.CodeBadRequest, "批量操作类型不合法")
 	}
+	reason = strings.TrimSpace(reason)
+	if target == string(domain.StageRejected) && reason == "" {
+		return 0, domain.NewError(400, domain.CodeBadRequest, "请填写淘汰原因")
+	}
 
 	updated := 0
 	for _, id := range ids {
@@ -483,8 +637,12 @@ func (s *JobService) Batch(ctx context.Context, actor *Actor, ids []string, acti
 		if err != nil || !actor.canAccessJob(job) {
 			continue // 越权投递拒绝
 		}
-		if err := s.Apps.UpdateStage(ctx, id, target); err == nil {
+		if !domain.CanTransition(domain.ApplicationStage(app.Stage), domain.ApplicationStage(target)) {
+			continue // 状态机不允许（如批量通过一个已 Offer 阶段的候选人）
+		}
+		if err := s.Apps.UpdateStage(ctx, id, target, reason); err == nil {
 			updated++
+			s.recordEvent(ctx, id, app.Stage, target, "stage_change", actor, reason)
 			s.audit(ctx, actor, "application.batch", "application", id, map[string]any{"action": action, "to": target})
 		}
 	}

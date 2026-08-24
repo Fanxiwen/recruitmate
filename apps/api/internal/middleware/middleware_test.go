@@ -45,7 +45,7 @@ func TestRequireInternal(t *testing.T) {
 	})
 
 	t.Run("有效令牌", func(t *testing.T) {
-		token, err := auth.Sign(testSecret, time.Hour, "user-1", "hr", nil)
+		token, err := auth.Sign(testSecret, time.Hour, "user-1", "hr", nil, "测试HR")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -70,7 +70,7 @@ func TestRequireInternal(t *testing.T) {
 	})
 
 	t.Run("过期令牌", func(t *testing.T) {
-		token, err := auth.Sign(testSecret, -time.Hour, "user-1", "hr", nil)
+		token, err := auth.Sign(testSecret, -time.Hour, "user-1", "hr", nil, "测试HR")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -81,7 +81,7 @@ func TestRequireInternal(t *testing.T) {
 	})
 
 	t.Run("错误密钥签名", func(t *testing.T) {
-		token, err := auth.Sign("other-secret", time.Hour, "user-1", "hr", nil)
+		token, err := auth.Sign("other-secret", time.Hour, "user-1", "hr", nil, "测试HR")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -125,7 +125,7 @@ func TestRequireCandidate(t *testing.T) {
 	})
 
 	t.Run("内部令牌不可用于候选人接口", func(t *testing.T) {
-		token, err := auth.Sign(testSecret, time.Hour, "user-1", "hr", nil)
+		token, err := auth.Sign(testSecret, time.Hour, "user-1", "hr", nil, "测试HR")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -144,7 +144,7 @@ func TestRequireRoles(t *testing.T) {
 	)
 
 	t.Run("角色允许", func(t *testing.T) {
-		token, err := auth.Sign(testSecret, time.Hour, "user-1", "hr", nil)
+		token, err := auth.Sign(testSecret, time.Hour, "user-1", "hr", nil, "测试HR")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -155,7 +155,7 @@ func TestRequireRoles(t *testing.T) {
 	})
 
 	t.Run("角色不允许返回 403", func(t *testing.T) {
-		token, err := auth.Sign(testSecret, time.Hour, "user-1", "hiring_manager", strPtr("dept-1"))
+		token, err := auth.Sign(testSecret, time.Hour, "user-1", "hiring_manager", strPtr("dept-1"), "部门负责人")
 		if err != nil {
 			t.Fatal(err)
 		}

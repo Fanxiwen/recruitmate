@@ -30,15 +30,51 @@ func (h *InternalApplicationHandler) Get(c *gin.Context) {
 	respondJSON(c, http.StatusOK, app)
 }
 
-// SetStage PATCH /api/v1/internal/applications/:id/stage —— 流转阶段。
+// SetStage PATCH /api/v1/internal/applications/:id/stage —— 流转阶段（OA 状态机）。
 func (h *InternalApplicationHandler) SetStage(c *gin.Context) {
-	var req struct {
-		Stage string `json:"stage"`
-	}
+	var req domain.SetStageRequest
 	if !bindJSON(c, &req) {
 		return
 	}
-	app, err := h.Jobs.SetStage(c.Request.Context(), actorFromContext(c), c.Param("id"), req.Stage)
+	app, err := h.Jobs.SetStage(c.Request.Context(), actorFromContext(c), c.Param("id"), req.Stage, req.Reason)
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	respondJSON(c, http.StatusOK, app)
+}
+
+// Offer POST /api/v1/internal/applications/:id/offer —— 发起 Offer 审批（HR/管理员）。
+func (h *InternalApplicationHandler) Offer(c *gin.Context) {
+	var req domain.OfferRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	offer, err := h.Jobs.OfferRequest(c.Request.Context(), actorFromContext(c), c.Param("id"), req.Salary, req.JoinDate, req.Note)
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	respondJSON(c, http.StatusOK, offer)
+}
+
+// OfferApprove POST /api/v1/internal/applications/:id/offer/approve —— 审批通过。
+func (h *InternalApplicationHandler) OfferApprove(c *gin.Context) {
+	app, err := h.Jobs.OfferApprove(c.Request.Context(), actorFromContext(c), c.Param("id"))
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	respondJSON(c, http.StatusOK, app)
+}
+
+// OfferReject POST /api/v1/internal/applications/:id/offer/reject —— 审批驳回（必填原因）。
+func (h *InternalApplicationHandler) OfferReject(c *gin.Context) {
+	var req domain.OfferDecisionRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	app, err := h.Jobs.OfferReject(c.Request.Context(), actorFromContext(c), c.Param("id"), req.Reason)
 	if err != nil {
 		respondError(c, err)
 		return
@@ -52,7 +88,7 @@ func (h *InternalApplicationHandler) Batch(c *gin.Context) {
 	if !bindJSON(c, &req) {
 		return
 	}
-	updated, err := h.Jobs.Batch(c.Request.Context(), actorFromContext(c), req.IDs, req.Action, req.Stage)
+	updated, err := h.Jobs.Batch(c.Request.Context(), actorFromContext(c), req.IDs, req.Action, req.Stage, req.Reason)
 	if err != nil {
 		respondError(c, err)
 		return

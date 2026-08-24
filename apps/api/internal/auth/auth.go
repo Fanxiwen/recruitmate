@@ -78,29 +78,32 @@ const (
 	AudienceCandidate = "candidate"
 )
 
-// Claims 内部端 JWT 载荷（sub/role/dep_id）。
+// Claims 内部端 JWT 载荷（sub/role/dep_id/name）。
 type Claims struct {
 	Role string `json:"role,omitempty"`
 	// DepID 部门 id，可为空（admin/hr 无部门）。
 	DepID *string `json:"dep_id,omitempty"`
+	// Name 用户姓名（OA 流转时间线展示操作人）。
+	Name string `json:"name,omitempty"`
 	jwt.RegisteredClaims
 }
 
 // Sign 签发 HS256 JWT（aud=internal）。
-func Sign(secret string, ttl time.Duration, userID, role string, depID *string) (string, error) {
-	return sign(secret, ttl, AudienceInternal, userID, role, depID)
+func Sign(secret string, ttl time.Duration, userID, role string, depID *string, name string) (string, error) {
+	return sign(secret, ttl, AudienceInternal, userID, role, depID, name)
 }
 
 // SignCandidate 签发求职者 JWT（aud=candidate）。
 func SignCandidate(secret string, ttl time.Duration, candidateID string) (string, error) {
-	return sign(secret, ttl, AudienceCandidate, candidateID, "", nil)
+	return sign(secret, ttl, AudienceCandidate, candidateID, "", nil, "")
 }
 
-func sign(secret string, ttl time.Duration, aud, sub, role string, depID *string) (string, error) {
+func sign(secret string, ttl time.Duration, aud, sub, role string, depID *string, name string) (string, error) {
 	now := time.Now()
 	claims := Claims{
 		Role:  role,
 		DepID: depID,
+		Name:  name,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   sub,
 			Audience:  jwt.ClaimStrings{aud},

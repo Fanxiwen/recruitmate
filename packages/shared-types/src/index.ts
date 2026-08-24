@@ -24,9 +24,22 @@ export type Role = 'admin' | 'hr' | 'hiring_manager';
 export type JobStatus = 'draft' | 'pending' | 'open' | 'closed';
 export type JobType = 'full_time' | 'intern';
 export type EducationLevel = 'any' | 'associate' | 'bachelor' | 'master' | 'doctor';
-export type ApplicationStage = 'new' | 'screening' | 'interview' | 'offer' | 'hired' | 'rejected';
-/** 求职者视角的投递状态（由后端从 stage 推导） */
-export type CandidateApplicationStatus = 'processing' | 'interviewing' | 'offered' | 'hired' | 'rejected';
+export type ApplicationStage =
+  | 'new'
+  | 'screening'
+  | 'interview'
+  | 'offer_pending'
+  | 'offered'
+  | 'hired'
+  | 'rejected';
+/** 求职者视角的投递状态（由后端从 stage 推导，不暴露内部细节） */
+export type CandidateApplicationStatus =
+  | 'processing'
+  | 'screening'
+  | 'interviewing'
+  | 'offered'
+  | 'hired'
+  | 'rejected';
 export type MatchEngine = 'ai' | 'rule';
 
 export const EDUCATION_LEVEL_LABELS: Record<EducationLevel, string> = {
@@ -48,9 +61,24 @@ export const STAGE_LABELS: Record<ApplicationStage, string> = {
   new: '新简历',
   screening: '初筛通过',
   interview: '面试中',
-  offer: '已发Offer',
+  offer_pending: 'Offer审批中',
+  offered: '已发Offer',
   hired: '已入职',
   rejected: '已淘汰',
+};
+
+/**
+ * 阶段流转状态机（服务端强制，前端据此禁用非法流转）。
+ * rejected → new 为「误杀恢复」，仅限 HR 手动执行并填写原因。
+ */
+export const STAGE_TRANSITIONS: Record<ApplicationStage, ApplicationStage[]> = {
+  new: ['screening', 'rejected'],
+  screening: ['interview', 'rejected'],
+  interview: ['offer_pending', 'rejected'],
+  offer_pending: ['offered', 'interview'], // 通过 Offer 审批接口流转
+  offered: ['hired', 'rejected'],
+  hired: [],
+  rejected: ['new'],
 };
 
 export const JOB_TYPE_LABELS: Record<JobType, string> = {
@@ -194,6 +222,38 @@ export interface ApplicationInternal {
   hasResumeFile: boolean;
   /** 简历提取文本（内部端详情接口返回，便于快速预览原文） */
   resumeText?: string;
+  /** 淘汰原因（阶段流转必填） */
+  rejectReason?: string;
+  /** 面试评价 */
+  interviewFeedback?: string;
+  /** 当前 Offer 审批单（详情接口返回） */
+  offer?: Offer | null;
+  /** 流转时间线（详情接口返回） */
+  events?: ApplicationEvent[];
+}
+
+/** Offer 审批单 */
+export interface Offer {
+  id: ID;
+  salary: string;
+  joinDate: string;
+  note: string;
+  status: 'pending' | 'approved' | 'rejected';
+  requestedByName: string;
+  decidedByName?: string;
+  requestedAt: ISODate;
+  decidedAt?: ISODate;
+}
+
+/** 流转时间线事件 */
+export interface ApplicationEvent {
+  id: number;
+  fromStage: string;
+  toStage: string;
+  action: 'stage_change' | 'offer_request' | 'offer_approve' | 'offer_reject' | 'feedback';
+  actorName: string;
+  reason: string;
+  createdAt: ISODate;
 }
 
 export interface ApplicationPublic {
@@ -273,4 +333,24 @@ export interface BatchActionRequest {
   action: 'stage' | 'reject' | 'hired';
   /** action 为 stage 时必填 */
   stage?: ApplicationStage;
+  /** 淘汰原因（action 为 reject 时建议填写） */
+  reason?: string;
+}
+
+/** 阶段流转请求（转 rejected 时 reason 必填） */
+export interface SetStageRequest {
+  stage: ApplicationStage;
+  reason?: string;
+}
+
+/** 发起 Offer 审批请求 */
+export interface OfferRequest {
+  salary?: string;
+  joinDate?: string;
+  note?: string;
+}
+
+/** 审批动作请求 */
+export interface OfferDecisionRequest {
+  reason?: string;
 }

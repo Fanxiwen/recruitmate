@@ -52,9 +52,13 @@ type InternalJobService interface {
 	Reopen(ctx context.Context, actor *service.Actor, id string) (*domain.JobPosting, error)
 	ListApplications(ctx context.Context, actor *service.Actor, jobID string, f repo.ApplicationListFilter, page, pageSize int) (*domain.Paginated[domain.ApplicationInternal], error)
 	GetApplication(ctx context.Context, actor *service.Actor, id string) (*domain.ApplicationInternal, error)
-	SetStage(ctx context.Context, actor *service.Actor, id, stage string) (*domain.ApplicationInternal, error)
-	Batch(ctx context.Context, actor *service.Actor, ids []string, action, stage string) (int, error)
+	SetStage(ctx context.Context, actor *service.Actor, id, stage, reason string) (*domain.ApplicationInternal, error)
+	Batch(ctx context.Context, actor *service.Actor, ids []string, action, stage, reason string) (int, error)
 	Stats(ctx context.Context, actor *service.Actor, jobID string) (*domain.JobStats, error)
 	ResumeURL(ctx context.Context, actor *service.Actor, appID string) (string, error)
 	ResumeFile(ctx context.Context, actor *service.Actor, appID string) ([]byte, string, error)
+	// OA Offer 审批链
+	OfferRequest(ctx context.Context, actor *service.Actor, appID, salary, joinDate, note string) (*domain.Offer, error)
+	OfferApprove(ctx context.Context, actor *service.Actor, appID string) (*domain.ApplicationInternal, error)
+	OfferReject(ctx context.Context, actor *service.Actor, appID, reason string) (*domain.ApplicationInternal, error)
 }

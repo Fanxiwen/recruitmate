@@ -94,8 +94,8 @@ type ApplicationRepo interface {
 	ListByJob(ctx context.Context, jobID string, f ApplicationListFilter, page, pageSize int) ([]domain.ApplicationInternal, int, error)
 	// GetByID 投递详情（含岗位标题、候选人信息）。
 	GetByID(ctx context.Context, id string) (*domain.ApplicationInternal, error)
-	// UpdateStage 更新流转阶段。
-	UpdateStage(ctx context.Context, id, stage string) error
+	// UpdateStage 更新流转阶段（reason：转 rejected 记淘汰原因，转 interview 记面试评价）。
+	UpdateStage(ctx context.Context, id, stage, reason string) error
 	// UpdateResumeFileKey 投递创建后写入简历文件 key。
 	UpdateResumeFileKey(ctx context.Context, id, fileKey string) error
 	// UpdateMatch 写回匹配结果（分数/详情/硬性标记/解析结果/向量）。
@@ -112,6 +112,22 @@ type ApplicationRepo interface {
 	ListScoredByJob(ctx context.Context, jobID string) ([]ScoredApplication, error)
 	// ListPublicByCandidate 求职者本人的投递列表（状态由 stage 推导）。
 	ListPublicByCandidate(ctx context.Context, candidateID string) ([]domain.ApplicationPublic, error)
+
+	// ===== OA 流程：Offer 审批 + 流转时间线 =====
+	// CreateOffer 创建 Offer 审批单（pending）。
+	CreateOffer(ctx context.Context, o *domain.Offer, applicationID, requestedBy string) (*domain.Offer, error)
+	// GetPendingOfferByApplication 查询待审批 Offer（无则 ErrNotFound）。
+	GetPendingOfferByApplication(ctx context.Context, applicationID string) (*domain.Offer, error)
+	// GetLatestOfferByApplication 查询最近一次 Offer（任意状态；无则 ErrNotFound）。
+	GetLatestOfferByApplication(ctx context.Context, applicationID string) (*domain.Offer, error)
+	// GetOfferRequestedBy 读取 Offer 发起人（四眼原则）。
+	GetOfferRequestedBy(ctx context.Context, offerID string) (string, error)
+	// DecideOffer 审批 Offer（approved / rejected）。
+	DecideOffer(ctx context.Context, offerID, status, decidedBy string) error
+	// InsertApplicationEvent 写入流转事件。
+	InsertApplicationEvent(ctx context.Context, applicationID, fromStage, toStage, action, actorID, actorName, reason string) error
+	// ListApplicationEvents 查询流转时间线。
+	ListApplicationEvents(ctx context.Context, applicationID string) ([]domain.ApplicationEvent, error)
 }
 
 // AuditLog 审计日志记录。

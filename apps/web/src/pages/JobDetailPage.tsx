@@ -11,7 +11,9 @@ import {
   Col,
   Descriptions,
   Empty,
+  Form,
   Input,
+  Modal,
   Popover,
   Result,
   Row,
@@ -147,21 +149,15 @@ export function JobDetailPage() {
   const setStageMutation = useSetStage();
   const batch = useBatchAction(id);
 
-  const handleStageChange = (app: ApplicationInternal, nextStage: ApplicationStage) => {
+  // ===== 批量淘汰原因弹窗 =====
+  const [batchRejectOpen, setBatchRejectOpen] = useState(false);
+  const [batchRejectForm] = Form.useForm();
+
+  const handleStageChange = (app: ApplicationInternal, nextStage: ApplicationStage, reason?: string) => {
     setStageMutation.mutate(
-      { id: app.id, stage: nextStage },
+      { id: app.id, stage: nextStage, reason },
       {
         onError: (e) => message.error(errorMessage(e, '更新阶段失败')),
-      },
-    );
-  };
-
-  const handleRejectOne = (app: ApplicationInternal) => {
-    batch.mutate(
-      { ids: [app.id], action: 'reject' },
-      {
-        onSuccess: (res) => message.success(`已更新 ${res.updated} 份简历`),
-        onError: (e) => message.error(errorMessage(e, '淘汰失败')),
       },
     );
   };
@@ -180,14 +176,22 @@ export function JobDetailPage() {
     );
   };
 
-  const batchReject = () => {
+  const batchReject = async () => {
     if (selectedKeys.length === 0) return;
+    let reason = '';
+    try {
+      const values = await batchRejectForm.validateFields();
+      reason = values.reason as string;
+    } catch {
+      return; // 表单校验未通过，Modal 内已有必填提示
+    }
     batch.mutate(
-      { ids: selectedKeys as string[], action: 'reject' },
+      { ids: selectedKeys as string[], action: 'reject', reason },
       {
         onSuccess: (res) => {
           message.success(`已更新 ${res.updated} 份简历`);
           setSelectedKeys([]);
+          setBatchRejectOpen(false);
         },
         onError: (e) => message.error(errorMessage(e, '批量操作失败')),
       },
@@ -223,16 +227,23 @@ export function JobDetailPage() {
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
       <Card title="岗位统计">
         <Row gutter={[16, 16]}>
-          <Col xs={12} md={6}>
+          <Col flex="1" style={{ minWidth: 150 }}>
             <Statistic title="总投递" value={stats?.total ?? 0} />
           </Col>
-          <Col xs={12} md={6}>
+          <Col flex="1" style={{ minWidth: 150 }}>
             <Statistic title="平均匹配分" value={stats?.avgScore ?? 0} suffix={stats?.avgScore != null ? '分' : ''} />
           </Col>
-          <Col xs={12} md={6}>
+          <Col flex="1" style={{ minWidth: 150 }}>
             <Statistic title="不满足硬性条件" value={stats?.hardPassCount ?? 0} valueStyle={{ color: '#fa541c' }} />
           </Col>
-          <Col xs={12} md={6}>
+          <Col flex="1" style={{ minWidth: 150 }}>
+            <Statistic
+              title="Offer 审批中"
+              value={stats?.byStage.offer_pending ?? 0}
+              valueStyle={{ color: '#722ed1' }}
+            />
+          </Col>
+          <Col flex="1" style={{ minWidth: 150 }}>
             <Statistic title="需求人数" value={job.headcount} />
           </Col>
         </Row>
@@ -320,7 +331,11 @@ export function JobDetailPage() {
             >
               批量通过到初筛（{selectedKeys.length}）
             </Button>
-            <Button danger loading={batch.isPending} onClick={batchReject}>
+            <Button danger loading={batch.isPending} onClick={() => {
+              batchRejectForm.resetFields();
+              batchRejectForm.setFieldsValue({ reason: '批量淘汰' });
+              setBatchRejectOpen(true);
+            }}>
               批量淘汰
             </Button>
             <Button onClick={() => setSelectedKeys([])}>取消选择</Button>
@@ -352,7 +367,6 @@ export function JobDetailPage() {
           }}
           onStageChange={handleStageChange}
           onOpenDetail={openDetail}
-          onReject={handleRejectOne}
         />
       )}
     </Space>
@@ -397,6 +411,32 @@ export function JobDetailPage() {
         onClose={() => setDrawerOpen(false)}
         onStageChange={handleStageChange}
       />
+
+      {/* 批量淘汰原因弹窗（原因必填，默认「批量淘汰」） */}
+      <Modal
+        title={`批量淘汰 ${selectedKeys.length} 位候选人`}
+        open={batchRejectOpen}
+        onOk={batchReject}
+        onCancel={() => setBatchRejectOpen(false)}
+        okText="确认淘汰"
+        cancelText="取消"
+        okButtonProps={{ danger: true }}
+        confirmLoading={batch.isPending}
+        destroyOnHidden
+      >
+        <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
+          淘汰原因将记录在各候选人的流程时间线中。
+        </Typography.Paragraph>
+        <Form form={batchRejectForm} layout="vertical">
+          <Form.Item
+            name="reason"
+            label="淘汰原因"
+            rules={[{ required: true, whitespace: true, message: '请填写淘汰原因' }]}
+          >
+            <Input.TextArea rows={3} placeholder="请填写淘汰原因（必填）" maxLength={500} showCount />
+          </Form.Item>
+        </Form>
+      </Modal>
     </Space>
   );
 }

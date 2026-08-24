@@ -22,12 +22,13 @@ import {
 } from '../hooks/useApi';
 import { formatDateTime, isValidEmail } from '../utils/format';
 
-/** 状态步骤定义（已投递 → 处理中/面试中 → Offer/结果） */
-const STATUS_STEPS = ['已投递', '处理中/面试中', 'Offer/结果'] as const;
+/** 状态步骤定义（已投递 → 初筛 → 面试 → Offer） */
+const STATUS_STEPS = ['已投递', '初筛通过', '面试', 'Offer'] as const;
 
 /** 求职者视角状态 → 展示标签（shared-types 未提供该映射，此处定义） */
 const STATUS_LABELS: Record<CandidateApplicationStatus, string> = {
   processing: '处理中',
+  screening: '初筛通过',
   interviewing: '面试中',
   offered: '已发Offer',
   hired: '已入职',
@@ -37,6 +38,7 @@ const STATUS_LABELS: Record<CandidateApplicationStatus, string> = {
 /** 状态 → 醒目提示文案 */
 const STATUS_HINTS: Record<CandidateApplicationStatus, string> = {
   processing: '简历已投递，HR 正在处理中，请耐心等待',
+  screening: '简历已通过初筛，请留意后续通知',
   interviewing: '已进入面试环节，请留意邮件通知',
   offered: '已收到 Offer，请留意后续沟通',
   hired: '恭喜！你已成功入职，期待与你共事',
@@ -290,10 +292,11 @@ function ApplicationCard({ app }: { app: ApplicationPublic }) {
   );
 }
 
-/** 状态 Steps：processing→第一步，interviewing→第二步，offered→第三步；hired 成功终点，rejected 红色终点 */
+/** 状态 Steps：processing→第1步，screening→第2步，interviewing→第3步，offered→第4步；hired 成功终点，rejected 红色终点 */
 function StatusSteps({ status }: { status: CandidateApplicationStatus }) {
   // 当前到达的步骤下标（0 起步）
-  const activeIndex = status === 'processing' ? 0 : status === 'interviewing' ? 1 : 2;
+  const activeIndex =
+    status === 'processing' ? 0 : status === 'screening' ? 1 : status === 'interviewing' ? 2 : 3;
   const isSuccess = status === 'hired';
   const isDanger = status === 'rejected';
 
@@ -366,6 +369,8 @@ function statusBadgeClass(status: CandidateApplicationStatus): string {
       return 'bg-brand-50 text-brand-600';
     case 'interviewing':
       return 'bg-blue-50 text-blue-600';
+    case 'screening':
+      return 'bg-brand-50 text-brand-600';
     case 'processing':
       return 'bg-slate-100 text-slate-500';
   }
@@ -382,6 +387,8 @@ function statusHintClass(status: CandidateApplicationStatus): string {
       return 'bg-brand-50 text-brand-700';
     case 'interviewing':
       return 'bg-blue-50 text-blue-700';
+    case 'screening':
+      return 'bg-brand-50 text-brand-700';
     case 'processing':
       return 'bg-slate-50 text-slate-500';
   }

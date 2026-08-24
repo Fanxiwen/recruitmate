@@ -23,11 +23,12 @@ type Actor struct {
 	UserID string
 	Role   string
 	DepID  *string
+	Name   string
 }
 
 // NewActorFromClaims 从 JWT Claims 构造 Actor。
 func NewActorFromClaims(c *auth.Claims) *Actor {
-	return &Actor{UserID: c.Subject, Role: c.Role, DepID: c.DepID}
+	return &Actor{UserID: c.Subject, Role: c.Role, DepID: c.DepID, Name: c.Name}
 }
 
 // isAdmin 是否管理员。
@@ -84,7 +85,7 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (*domai
 	if err != nil || !ok {
 		return nil, domain.NewError(401, domain.CodeUnauthorized, "邮箱或密码错误")
 	}
-	token, err := auth.Sign(s.JWTSecret, s.JWTTTL, user.ID, user.Role, user.DepartmentID)
+	token, err := auth.Sign(s.JWTSecret, s.JWTTTL, user.ID, user.Role, user.DepartmentID, user.Name)
 	if err != nil {
 		return nil, domain.WrapError(500, domain.CodeInternal, "签发令牌失败", err)
 	}

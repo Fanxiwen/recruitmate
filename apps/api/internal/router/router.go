@@ -71,6 +71,9 @@ func New(d Deps) *gin.Engine {
 			authGroup.POST("/applications/batch", d.InternalApps.Batch)
 			authGroup.GET("/applications/:id/resume-url", d.InternalApps.ResumeURL)
 			authGroup.GET("/applications/:id/resume", d.InternalApps.Resume)
+			authGroup.POST("/applications/:id/offer", d.InternalApps.Offer)
+			authGroup.POST("/applications/:id/offer/approve", d.InternalApps.OfferApprove)
+			authGroup.POST("/applications/:id/offer/reject", d.InternalApps.OfferReject)
 		}
 	}
 

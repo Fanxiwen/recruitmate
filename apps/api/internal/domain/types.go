@@ -52,18 +52,44 @@ const (
 type ApplicationStage string
 
 const (
-	StageNew       ApplicationStage = "new"
-	StageScreening ApplicationStage = "screening"
-	StageInterview ApplicationStage = "interview"
-	StageOffer     ApplicationStage = "offer"
-	StageHired     ApplicationStage = "hired"
-	StageRejected  ApplicationStage = "rejected"
+	StageNew          ApplicationStage = "new"
+	StageScreening    ApplicationStage = "screening"
+	StageInterview    ApplicationStage = "interview"
+	StageOfferPending ApplicationStage = "offer_pending"
+	StageOffered      ApplicationStage = "offered"
+	StageHired        ApplicationStage = "hired"
+	StageRejected     ApplicationStage = "rejected"
 )
 
 // ValidStages 合法流转阶段集合。
 var ValidStages = map[ApplicationStage]bool{
 	StageNew: true, StageScreening: true, StageInterview: true,
-	StageOffer: true, StageHired: true, StageRejected: true,
+	StageOfferPending: true, StageOffered: true, StageHired: true, StageRejected: true,
+}
+
+// StageTransitions 阶段流转状态机（服务端强制，与前端 shared-types 一致）。
+// rejected → new 为「误杀恢复」，需 HR 手动执行并填写原因。
+var StageTransitions = map[ApplicationStage][]ApplicationStage{
+	StageNew:          {StageScreening, StageRejected},
+	StageScreening:    {StageInterview, StageRejected},
+	StageInterview:    {StageOfferPending, StageRejected},
+	StageOfferPending: {StageOffered, StageInterview}, // 经 Offer 审批接口流转
+	StageOffered:      {StageHired, StageRejected},
+	StageHired:        {},
+	StageRejected:     {StageNew},
+}
+
+// CanTransition 判断阶段流转是否合法（同阶段视为合法，用于幂等展示）。
+func CanTransition(from, to ApplicationStage) bool {
+	if from == to {
+		return true
+	}
+	for _, t := range StageTransitions[from] {
+		if t == to {
+			return true
+		}
+	}
+	return false
 }
 
 // ValidJobStatuses 合法岗位状态集合。
@@ -72,14 +98,17 @@ var ValidJobStatuses = map[JobStatus]bool{
 }
 
 // CandidateStatusFromStage 由投递阶段推导求职者视角的状态
-// （new/screening→processing, interview→interviewing, offer→offered, hired→hired, rejected→rejected）。
+// （new→processing, screening→screening, interview→interviewing,
+//   offer_pending/offered→offered, hired→hired, rejected→rejected）。
 func CandidateStatusFromStage(stage string) string {
 	switch ApplicationStage(stage) {
-	case StageNew, StageScreening:
+	case StageNew:
 		return "processing"
+	case StageScreening:
+		return "screening"
 	case StageInterview:
 		return "interviewing"
-	case StageOffer:
+	case StageOfferPending, StageOffered:
 		return "offered"
 	case StageHired:
 		return "hired"
@@ -244,6 +273,35 @@ type ApplicationInternal struct {
 	HasResumeFile bool          `json:"hasResumeFile"`
 	// ResumeText 简历提取文本（内部端详情接口返回，便于快速预览原文；无则省略）。
 	ResumeText string `json:"resumeText,omitempty"`
+	// OA 流程字段（详情接口返回）
+	RejectReason      string             `json:"rejectReason,omitempty"`
+	InterviewFeedback string             `json:"interviewFeedback,omitempty"`
+	Offer             *Offer             `json:"offer,omitempty"`
+	Events            []ApplicationEvent `json:"events,omitempty"`
+}
+
+// Offer Offer 审批单。
+type Offer struct {
+	ID              string     `json:"id"`
+	Salary          string     `json:"salary"`
+	JoinDate        string     `json:"joinDate"`
+	Note            string     `json:"note"`
+	Status          string     `json:"status"` // pending / approved / rejected
+	RequestedByName string     `json:"requestedByName"`
+	DecidedByName   string     `json:"decidedByName,omitempty"`
+	RequestedAt     time.Time  `json:"requestedAt"`
+	DecidedAt       *time.Time `json:"decidedAt,omitempty"`
+}
+
+// ApplicationEvent 流转时间线事件。
+type ApplicationEvent struct {
+	ID        int64     `json:"id"`
+	FromStage string    `json:"fromStage"`
+	ToStage   string    `json:"toStage"`
+	Action    string    `json:"action"`
+	ActorName string    `json:"actorName"`
+	Reason    string    `json:"reason"`
+	CreatedAt time.Time `json:"createdAt"`
 }
 
 // ApplicationPublic 求职者视角的投递状态视图。
@@ -352,6 +410,25 @@ type BatchActionRequest struct {
 	IDs    []string `json:"ids"`
 	Action string   `json:"action"`
 	Stage  string   `json:"stage"`
+	Reason string   `json:"reason"`
+}
+
+// SetStageRequest 阶段流转请求（转 rejected 时 reason 必填）。
+type SetStageRequest struct {
+	Stage  string `json:"stage"`
+	Reason string `json:"reason"`
+}
+
+// OfferRequest 发起 Offer 审批请求。
+type OfferRequest struct {
+	Salary   string `json:"salary"`
+	JoinDate string `json:"joinDate"`
+	Note     string `json:"note"`
+}
+
+// OfferDecisionRequest Offer 审批动作请求。
+type OfferDecisionRequest struct {
+	Reason string `json:"reason"`
 }
 
 // ============ 错误类型 ============

@@ -7,6 +7,7 @@ import type {
   JobPosting,
   JobPostingInput,
   JobStatus,
+  OfferRequest,
 } from '@recruitmate/shared-types';
 import { api } from '../lib/api';
 import { useAuthStore } from '../stores/auth';
@@ -172,12 +173,40 @@ export function useJobAction(action: JobAction) {
   });
 }
 
-/** 单个候选人阶段流转（表格行内 Select / Drawer 内 Select 共用） */
+/** 单个候选人阶段流转（表格行内 Select / Drawer 内 Select / 淘汰原因弹窗共用） */
 export function useSetStage() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, stage }: { id: string; stage: ApplicationStage }) =>
-      request(() => api.setStage(id, stage)),
+    mutationFn: ({ id, stage, reason }: { id: string; stage: ApplicationStage; reason?: string }) =>
+      request(() => api.setStage(id, stage, reason)),
+    onSuccess: (updated) => {
+      queryClient.invalidateQueries({ queryKey: ['applications'] });
+      queryClient.invalidateQueries({ queryKey: ['application', updated.id] });
+      queryClient.invalidateQueries({ queryKey: ['jobStats', updated.jobId] });
+    },
+  });
+}
+
+/** 发起 Offer 审批（HR/管理员，stage 必须为 interview） */
+export function useCreateOffer() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: OfferRequest }) =>
+      request(() => api.createOffer(id, body)),
+    onSuccess: (_offer, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ['applications'] });
+      queryClient.invalidateQueries({ queryKey: ['application', id] });
+      queryClient.invalidateQueries({ queryKey: ['jobStats'] });
+    },
+  });
+}
+
+/** Offer 审批动作：通过 / 驳回（驳回原因必填） */
+export function useDecideOffer() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, decision, reason }: { id: string; decision: 'approve' | 'reject'; reason?: string }) =>
+      request(() => api.decideOffer(id, decision, reason)),
     onSuccess: (updated) => {
       queryClient.invalidateQueries({ queryKey: ['applications'] });
       queryClient.invalidateQueries({ queryKey: ['application', updated.id] });

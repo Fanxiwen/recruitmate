@@ -1,14 +1,18 @@
-import type { ApplicationInternal, ApplicationStage } from '@recruitmate/shared-types';
+import type { ApplicationEvent, ApplicationInternal, ApplicationStage, Offer } from '@recruitmate/shared-types';
 import { STAGE_LABELS } from '@recruitmate/shared-types';
 import {
   Alert,
   Button,
+  Card,
   Collapse,
   Descriptions,
   Divider,
   Drawer,
   Empty,
+  Form,
+  Input,
   List,
+  Modal,
   Progress,
   Select,
   Space,
@@ -30,18 +34,50 @@ import type { ColumnsType } from 'antd/es/table';
 import type { HardCheck } from '@recruitmate/shared-types';
 import { api } from '../lib/api';
 import { formatDateTime, STAGE_COLORS } from '../lib/format';
-import { errorMessage, useApplicationDetail, type ApplicationDetail } from '../hooks/useApi';
+import { errorMessage, useApplicationDetail, useDecideOffer, useSetStage, type ApplicationDetail } from '../hooks/useApi';
+import { stageOptionsFor } from '../lib/stages';
+import { useAuthStore } from '../stores/auth';
 
-const STAGE_OPTIONS = (Object.entries(STAGE_LABELS) as [ApplicationStage, string][]).map(
-  ([value, label]) => ({ value, label }),
-);
+/** 时间线动作文案（action → 展示文案） */
+const EVENT_ACTION_LABELS: Record<ApplicationEvent['action'], string> = {
+  stage_change: '流转阶段',
+  offer_request: '发起 Offer 审批',
+  offer_approve: 'Offer 审批通过',
+  offer_reject: 'Offer 审批驳回',
+  feedback: '记录面试评价',
+};
+
+/** Offer 审批状态展示 */
+const OFFER_STATUS_LABELS: Record<Offer['status'], string> = {
+  pending: '审批中',
+  approved: '已通过',
+  rejected: '已驳回',
+};
+
+const OFFER_STATUS_COLORS: Record<Offer['status'], string> = {
+  pending: 'processing',
+  approved: 'success',
+  rejected: 'error',
+};
+
+/** 时间线事件文案：stage_change 带 from → to，其余动作固定文案 */
+function eventText(ev: ApplicationEvent): string {
+  if (ev.action === 'stage_change') {
+    const from = ev.fromStage
+      ? `${STAGE_LABELS[ev.fromStage as ApplicationStage] ?? ev.fromStage} → `
+      : '';
+    const to = STAGE_LABELS[ev.toStage as ApplicationStage] ?? ev.toStage;
+    return `流转阶段：${from}${to}`;
+  }
+  return EVENT_ACTION_LABELS[ev.action];
+}
 
 interface MatchDrawerProps {
   open: boolean;
   application: ApplicationInternal | null;
   onClose: () => void;
-  /** 阶段流转（父级负责 mutation 与数据刷新） */
-  onStageChange: (app: ApplicationInternal, stage: ApplicationStage) => void;
+  /** 阶段流转（父级负责 mutation 与数据刷新；转 rejected 请走抽屉内原因弹窗） */
+  onStageChange: (app: ApplicationInternal, stage: ApplicationStage, reason?: string) => void;
 }
 
 /** 硬性条件检查表列 */
@@ -84,6 +120,18 @@ function ScoreBar({ label, value, color }: { label: string; value: number; color
  */
 export function MatchDrawer({ open, application, onClose, onStageChange }: MatchDrawerProps) {
   const [downloadLoading, setDownloadLoading] = useState(false);
+  const user = useAuthStore((s) => s.user);
+
+  const setStageMutation = useSetStage();
+  const decideOfferMutation = useDecideOffer();
+
+  // ===== 阶段流转 → 淘汰原因弹窗 =====
+  const [stageRejectOpen, setStageRejectOpen] = useState(false);
+  const [stageRejectForm] = Form.useForm();
+
+  // ===== Offer 驳回原因弹窗 =====
+  const [offerRejectOpen, setOfferRejectOpen] = useState(false);
+  const [offerRejectForm] = Form.useForm();
 
   // 打开时拉取最新详情（含简历原文 resumeText，后端若未返回则回退为列表数据）
   const { data: detail } = useApplicationDetail(application?.id ?? '', open);
@@ -107,6 +155,75 @@ export function MatchDrawer({ open, application, onClose, onStageChange }: Match
       message.error(errorMessage(err, '下载简历失败'));
     } finally {
       setDownloadLoading(false);
+    }
+  };
+
+  /** 阶段下拉选择：转 rejected 必须先填原因，其余直接流转 */
+  const handleStageSelect = (nextStage: ApplicationStage) => {
+    if (!app) return;
+    if (nextStage === 'rejected') {
+      stageRejectForm.resetFields();
+      setStageRejectOpen(true);
+      return;
+    }
+    onStageChange(app, nextStage);
+  };
+
+  /** 确认淘汰（原因必填） */
+  const confirmStageReject = async () => {
+    if (!app) return;
+    let reason = '';
+    try {
+      const values = await stageRejectForm.validateFields();
+      reason = values.reason as string;
+    } catch {
+      return; // 表单校验未通过，Modal 内已有必填提示
+    }
+    try {
+      await setStageMutation.mutateAsync({ id: app.id, stage: 'rejected', reason });
+      message.success('已淘汰候选人');
+      setStageRejectOpen(false);
+    } catch (err) {
+      message.error(errorMessage(err, '淘汰失败'));
+    }
+  };
+
+  /** Offer 审批人判断（简化）：admin / 部门负责人，且不能是发起人本人 */
+  const offer = app?.offer ?? null;
+  const isOfferApprover =
+    !!offer &&
+    offer.status === 'pending' &&
+    !!user &&
+    (user.role === 'admin' || user.role === 'hiring_manager') &&
+    offer.requestedByName !== user.name;
+
+  /** Offer 审批通过 */
+  const approveOffer = async () => {
+    if (!app) return;
+    try {
+      await decideOfferMutation.mutateAsync({ id: app.id, decision: 'approve' });
+      message.success('Offer 审批已通过');
+    } catch (err) {
+      message.error(errorMessage(err, '审批失败'));
+    }
+  };
+
+  /** Offer 审批驳回（原因必填） */
+  const confirmOfferReject = async () => {
+    if (!app) return;
+    let reason = '';
+    try {
+      const values = await offerRejectForm.validateFields();
+      reason = values.reason as string;
+    } catch {
+      return; // 表单校验未通过
+    }
+    try {
+      await decideOfferMutation.mutateAsync({ id: app.id, decision: 'reject', reason });
+      message.success('Offer 已驳回');
+      setOfferRejectOpen(false);
+    } catch (err) {
+      message.error(errorMessage(err, '审批失败'));
     }
   };
 
@@ -166,11 +283,109 @@ export function MatchDrawer({ open, application, onClose, onStageChange }: Match
               <Select
                 style={{ width: 160 }}
                 value={app.stage}
-                options={STAGE_OPTIONS}
-                onChange={(v) => onStageChange(app, v)}
+                options={stageOptionsFor(app.stage)}
+                onChange={handleStageSelect}
               />
             </Space>
           </section>
+
+          <Divider style={{ margin: 0 }} />
+
+          {/* ===== 流程时间线（含淘汰原因 / 面试评价 / Offer 审批单） ===== */}
+          <section>
+            <Typography.Title level={5}>流程时间线</Typography.Title>
+            {!app.events || app.events.length === 0 ? (
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无流程记录" />
+            ) : (
+              <Timeline
+                style={{ marginTop: 8 }}
+                items={app.events.map((ev) => ({
+                  key: ev.id,
+                  children: (
+                    <Space direction="vertical" size={2} style={{ width: '100%' }}>
+                      <span>
+                        <Typography.Text strong>{ev.actorName}</Typography.Text>
+                        {' · '}
+                        {eventText(ev)}
+                      </span>
+                      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                        {formatDateTime(ev.createdAt)}
+                      </Typography.Text>
+                      {ev.reason && (
+                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                          原因：{ev.reason}
+                        </Typography.Text>
+                      )}
+                    </Space>
+                  ),
+                }))}
+              />
+            )}
+            {app.rejectReason && (
+              <Alert
+                type="error"
+                showIcon
+                style={{ marginTop: 12 }}
+                message="淘汰原因"
+                description={app.rejectReason}
+              />
+            )}
+            {app.interviewFeedback && (
+              <Alert
+                type="info"
+                showIcon
+                style={{ marginTop: 12 }}
+                message="面试评价"
+                description={app.interviewFeedback}
+              />
+            )}
+          </section>
+
+          {/* ===== Offer 审批单 ===== */}
+          {offer && (
+            <section>
+              <Typography.Title level={5}>Offer 审批单</Typography.Title>
+              <Card size="small">
+                <Descriptions
+                  size="small"
+                  column={1}
+                  items={[
+                    { key: 'salary', label: '薪资（千元/月）', children: offer.salary || '—' },
+                    { key: 'joinDate', label: '入职时间', children: offer.joinDate || '—' },
+                    { key: 'note', label: '备注', children: offer.note || '—' },
+                    {
+                      key: 'status',
+                      label: '状态',
+                      children: <Tag color={OFFER_STATUS_COLORS[offer.status]}>{OFFER_STATUS_LABELS[offer.status]}</Tag>,
+                    },
+                    { key: 'requestedBy', label: '发起人', children: offer.requestedByName },
+                    { key: 'decidedBy', label: '决定人', children: offer.decidedByName || '—' },
+                  ]}
+                />
+                {isOfferApprover && (
+                  <Space style={{ marginTop: 12 }}>
+                    <Button
+                      type="primary"
+                      loading={decideOfferMutation.isPending}
+                      onClick={approveOffer}
+                    >
+                      通过
+                    </Button>
+                    <Button
+                      danger
+                      loading={decideOfferMutation.isPending}
+                      onClick={() => {
+                        offerRejectForm.resetFields();
+                        setOfferRejectOpen(true);
+                      }}
+                    >
+                      驳回
+                    </Button>
+                  </Space>
+                )}
+              </Card>
+            </section>
+          )}
 
           <Divider style={{ margin: 0 }} />
 
@@ -399,6 +614,58 @@ export function MatchDrawer({ open, application, onClose, onStageChange }: Match
           </section>
         </Space>
       )}
+
+      {/* 淘汰原因弹窗（阶段流转 → rejected 必填原因） */}
+      <Modal
+        title="淘汰候选人"
+        open={stageRejectOpen}
+        onOk={confirmStageReject}
+        onCancel={() => setStageRejectOpen(false)}
+        okText="确认淘汰"
+        cancelText="取消"
+        okButtonProps={{ danger: true }}
+        confirmLoading={setStageMutation.isPending}
+        destroyOnHidden
+      >
+        <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
+          确认将候选人「{app?.candidateName ?? ''}」淘汰？淘汰原因将记录在流程时间线中。
+        </Typography.Paragraph>
+        <Form form={stageRejectForm} layout="vertical">
+          <Form.Item
+            name="reason"
+            label="淘汰原因"
+            rules={[{ required: true, whitespace: true, message: '请填写淘汰原因' }]}
+          >
+            <Input.TextArea rows={3} placeholder="请填写淘汰原因（必填）" maxLength={500} showCount />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Offer 驳回原因弹窗（必填） */}
+      <Modal
+        title="驳回 Offer 审批"
+        open={offerRejectOpen}
+        onOk={confirmOfferReject}
+        onCancel={() => setOfferRejectOpen(false)}
+        okText="确认驳回"
+        cancelText="取消"
+        okButtonProps={{ danger: true }}
+        confirmLoading={decideOfferMutation.isPending}
+        destroyOnHidden
+      >
+        <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
+          确认驳回候选人「{app?.candidateName ?? ''}」的 Offer 审批？驳回后候选人将回到面试环节。
+        </Typography.Paragraph>
+        <Form form={offerRejectForm} layout="vertical">
+          <Form.Item
+            name="reason"
+            label="驳回原因"
+            rules={[{ required: true, whitespace: true, message: '请填写驳回原因' }]}
+          >
+            <Input.TextArea rows={3} placeholder="请填写驳回原因（必填）" maxLength={500} showCount />
+          </Form.Item>
+        </Form>
+      </Modal>
     </Drawer>
   );
 }

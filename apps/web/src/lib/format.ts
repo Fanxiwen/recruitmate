@@ -13,7 +13,8 @@ export const STAGE_COLORS: Record<ApplicationStage, string> = {
   new: 'blue',
   screening: 'cyan',
   interview: 'geekblue',
-  offer: 'purple',
+  offer_pending: 'purple',
+  offered: 'gold',
   hired: 'green',
   rejected: 'red',
 };

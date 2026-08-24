@@ -17,6 +17,8 @@ import type {
   JobStats,
   LoginRequest,
   LoginResponse,
+  Offer,
+  OfferRequest,
   Paginated,
   SendCodeRequest,
   SendCodeResponse,
@@ -190,10 +192,27 @@ export class ApiClient {
     return this.request<ApplicationInternal>(`/internal/applications/${id}`);
   }
 
-  setStage(id: string, stage: ApplicationInternal['stage']): Promise<ApplicationInternal> {
+  /** 阶段流转：转 rejected 时 reason 必填（后端校验） */
+  setStage(id: string, stage: ApplicationInternal['stage'], reason?: string): Promise<ApplicationInternal> {
     return this.request<ApplicationInternal>(`/internal/applications/${id}/stage`, {
       method: 'PATCH',
-      body: JSON.stringify({ stage }),
+      body: JSON.stringify({ stage, reason }),
+    });
+  }
+
+  /** 发起 Offer 审批（仅 hr/admin 可发起，stage 必须为 interview） */
+  createOffer(id: string, body: OfferRequest): Promise<Offer> {
+    return this.request<Offer>(`/internal/applications/${id}/offer`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  /** Offer 审批动作：通过 / 驳回（驳回时 reason 必填） */
+  decideOffer(id: string, decision: 'approve' | 'reject', reason?: string): Promise<ApplicationInternal> {
+    return this.request<ApplicationInternal>(`/internal/applications/${id}/offer/${decision}`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
     });
   }
 
