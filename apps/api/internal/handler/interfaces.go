@@ -23,7 +23,7 @@ type ApplyService interface {
 
 // PublicAuthService 公开认证服务（邮箱验证码 + 候选人投递查询）。
 type PublicAuthService interface {
-	SendEmailCode(ctx context.Context, email string) error
+	SendEmailCode(ctx context.Context, email string) (string, error)
 	VerifyEmailCode(ctx context.Context, email, code string) (string, error)
 	MyApplications(ctx context.Context, candidateID string) ([]domain.ApplicationPublic, error)
 }

@@ -330,6 +330,12 @@ type SendCodeRequest struct {
 	Email string `json:"email"`
 }
 
+// SendCodeResponse 发送验证码响应：非生产环境附带 devCode（演示模式直接展示）。
+type SendCodeResponse struct {
+	Message string `json:"message"`
+	DevCode string `json:"devCode,omitempty"`
+}
+
 // VerifyCodeRequest 校验验证码请求。
 type VerifyCodeRequest struct {
 	Email string `json:"email"`

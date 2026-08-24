@@ -124,7 +124,7 @@ func run() error {
 	defer asynqServer.Shutdown()
 
 	// 8. 服务与处理器
-	authSvc := service.NewAuthService(repos.Users, repos.Candidates, repos.Applications, cfg.JWTSecret, cfg.JWTTTL, rdb)
+	authSvc := service.NewAuthService(repos.Users, repos.Candidates, repos.Applications, cfg.JWTSecret, cfg.JWTTTL, rdb, cfg.AppEnv)
 	deptSvc := service.NewDepartmentService(repos.Departments)
 	jobSvc := service.NewJobService(repos.Jobs, repos.Applications, repos.Audit, queue, storage)
 	applySvc := service.NewApplyService(repos.Jobs, repos.Candidates, repos.Applications, storage, queue, repos.Audit)

@@ -93,10 +93,15 @@ export function MyApplicationsPage() {
     sendCode.mutate(
       { email: email.trim() },
       {
-        onSuccess: () => {
+        onSuccess: (res) => {
           setCodeSent(true);
           setCountdown(60);
-          setNotice(`验证码已发送至 ${email.trim()}，请查收邮箱（开发环境请查看后端日志）`);
+          // 演示/开发环境后端直接返回验证码（devCode），页面明示，方便演示全流程
+          if (res?.devCode) {
+            setNotice(`验证码已发送至 ${email.trim()}（开发模式，验证码：${res.devCode}）`);
+          } else {
+            setNotice(`验证码已发送至 ${email.trim()}，请查收邮箱`);
+          }
         },
         onError: (err) => setLoginError(getErrorMessage(err)),
       },

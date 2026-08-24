@@ -57,11 +57,13 @@ type AuthService struct {
 	JWTSecret    string
 	JWTTTL       time.Duration
 	Redis        *redis.Client
+	// AppEnv 环境标识：非 prod 时验证码随接口返回（演示/开发模式），生产仅走邮件/日志。
+	AppEnv string
 }
 
 // NewAuthService 构造认证服务。
-func NewAuthService(users repo.UserRepo, candidates repo.CandidateRepo, apps repo.ApplicationRepo, secret string, ttl time.Duration, rdb *redis.Client) *AuthService {
-	return &AuthService{Users: users, Candidates: candidates, Applications: apps, JWTSecret: secret, JWTTTL: ttl, Redis: rdb}
+func NewAuthService(users repo.UserRepo, candidates repo.CandidateRepo, apps repo.ApplicationRepo, secret string, ttl time.Duration, rdb *redis.Client, appEnv string) *AuthService {
+	return &AuthService{Users: users, Candidates: candidates, Applications: apps, JWTSecret: secret, JWTTTL: ttl, Redis: rdb, AppEnv: appEnv}
 }
 
 // Login 内部端登录：校验邮箱密码，签发 JWT（aud=internal）。
@@ -111,29 +113,35 @@ func (s *AuthService) passwordHash(ctx context.Context, userID string) (string, 
 }
 
 // SendEmailCode 生成 6 位验证码存 Redis（5 分钟 TTL），60 秒内重复请求拒绝。
+// 返回值 devCode：非生产环境直接返回验证码便于演示/测试；生产环境为空字符串。
 // 当前不接 SMTP，用 slog 打印验证码（生产可接邮件服务）。
-func (s *AuthService) SendEmailCode(ctx context.Context, email string) error {
+func (s *AuthService) SendEmailCode(ctx context.Context, email string) (string, error) {
 	email = strings.ToLower(strings.TrimSpace(email))
 	if email == "" || !strings.Contains(email, "@") {
-		return domain.NewError(400, domain.CodeBadRequest, "邮箱格式不正确")
+		return "", domain.NewError(400, domain.CodeBadRequest, "邮箱格式不正确")
 	}
 	// 60 秒限流
 	rateKey := "auth:rate:" + email
 	ok, err := s.Redis.SetNX(ctx, rateKey, "1", 60*time.Second).Result()
 	if err != nil {
-		return domain.WrapError(500, domain.CodeInternal, "验证码服务异常", err)
+		return "", domain.WrapError(500, domain.CodeInternal, "验证码服务异常", err)
 	}
 	if !ok {
-		return domain.NewError(429, domain.CodeRateLimited, "请求过于频繁，请 60 秒后再试")
+		return "", domain.NewError(429, domain.CodeRateLimited, "请求过于频繁，请 60 秒后再试")
 	}
 
 	code := fmt.Sprintf("%06d", rand.Intn(1000000))
 	if err := s.Redis.Set(ctx, "auth:code:"+email, code, 5*time.Minute).Err(); err != nil {
-		return domain.WrapError(500, domain.CodeInternal, "验证码存储失败", err)
+		return "", domain.WrapError(500, domain.CodeInternal, "验证码存储失败", err)
 	}
 	// 未接入 SMTP：打印验证码到日志
 	slog.Info("email code generated", "email", email, "code", code, "ttl", "5m")
-	return nil
+
+	devCode := ""
+	if s.AppEnv != "prod" {
+		devCode = code
+	}
+	return devCode, nil
 }
 
 // VerifyEmailCode 校验验证码，成功签发候选人 JWT（aud=candidate, sub=candidate_id）。

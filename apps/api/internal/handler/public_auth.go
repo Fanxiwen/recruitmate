@@ -19,16 +19,18 @@ func NewPublicAuthHandler(auth PublicAuthService) *PublicAuthHandler {
 }
 
 // SendEmailCode POST /api/v1/public/auth/email-code —— 发送 6 位验证码。
+// 非生产环境（演示/测试）响应附带 devCode 字段，便于页面直接展示。
 func (h *PublicAuthHandler) SendEmailCode(c *gin.Context) {
 	var req domain.SendCodeRequest
 	if !bindJSON(c, &req) {
 		return
 	}
-	if err := h.Auth.SendEmailCode(c.Request.Context(), req.Email); err != nil {
+	devCode, err := h.Auth.SendEmailCode(c.Request.Context(), req.Email)
+	if err != nil {
 		respondError(c, err)
 		return
 	}
-	respondJSON(c, http.StatusOK, gin.H{"message": "验证码已发送"})
+	respondJSON(c, http.StatusOK, domain.SendCodeResponse{Message: "验证码已发送", DevCode: devCode})
 }
 
 // Verify POST /api/v1/public/auth/verify —— 校验验证码，返回候选人 JWT。

@@ -19,6 +19,7 @@ import type {
   LoginResponse,
   Paginated,
   SendCodeRequest,
+  SendCodeResponse,
   User,
   VerifyCodeRequest,
   VerifyCodeResponse,
@@ -100,8 +101,8 @@ export class ApiClient {
     });
   }
 
-  sendCode(body: SendCodeRequest): Promise<void> {
-    return this.request<void>('/public/auth/email-code', {
+  sendCode(body: SendCodeRequest): Promise<SendCodeResponse> {
+    return this.request<SendCodeResponse>('/public/auth/email-code', {
       method: 'POST',
       body: JSON.stringify(body),
     });

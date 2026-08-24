@@ -226,6 +226,12 @@ export interface SendCodeRequest {
   email: string;
 }
 
+export interface SendCodeResponse {
+  message: string;
+  /** 非生产环境返回的验证码（演示模式）；生产环境不返回该字段 */
+  devCode?: string;
+}
+
 export interface VerifyCodeRequest {
   email: string;
   code: string;
