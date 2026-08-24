@@ -70,6 +70,7 @@ func New(d Deps) *gin.Engine {
 			authGroup.PATCH("/applications/:id/stage", d.InternalApps.SetStage)
 			authGroup.POST("/applications/batch", d.InternalApps.Batch)
 			authGroup.GET("/applications/:id/resume-url", d.InternalApps.ResumeURL)
+			authGroup.GET("/applications/:id/resume", d.InternalApps.Resume)
 		}
 	}
 

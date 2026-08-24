@@ -208,9 +208,33 @@ export class ApiClient {
     return this.request<JobStats>(`/internal/jobs/${jobId}/stats`);
   }
 
-  /** 简历原文件下载地址（预签名 URL） */
+  /** 简历原文件下载地址（预签名 URL，历史接口；浏览器端请用 downloadResume） */
   resumeUrl(applicationId: string): Promise<{ url: string }> {
     return this.request<{ url: string }>(`/internal/applications/${applicationId}/resume-url`);
+  }
+
+  /**
+   * 鉴权下载简历原件：后端流式转发（避免预签名 URL 暴露内网 MinIO 地址）。
+   * 返回文件 Blob 与文件名（来自 Content-Disposition）。
+   */
+  async downloadResume(applicationId: string): Promise<{ blob: Blob; filename: string }> {
+    const t = this.getToken();
+    const res = await fetch(`${this.baseUrl}/internal/applications/${applicationId}/resume`, {
+      headers: t ? { Authorization: `Bearer ${t}` } : {},
+    });
+    if (!res.ok) await parseError(res);
+
+    let filename = 'resume';
+    const cd = res.headers.get('Content-Disposition') ?? '';
+    const m = /filename\*=UTF-8''([^;]+)/i.exec(cd);
+    if (m) {
+      try {
+        filename = decodeURIComponent(m[1]);
+      } catch {
+        filename = m[1];
+      }
+    }
+    return { blob: await res.blob(), filename };
   }
 }
 

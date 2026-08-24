@@ -30,7 +30,7 @@ import type { ColumnsType } from 'antd/es/table';
 import type { HardCheck } from '@recruitmate/shared-types';
 import { api } from '../lib/api';
 import { formatDateTime, STAGE_COLORS } from '../lib/format';
-import { errorMessage, request, useApplicationDetail, type ApplicationDetail } from '../hooks/useApi';
+import { errorMessage, useApplicationDetail, type ApplicationDetail } from '../hooks/useApi';
 
 const STAGE_OPTIONS = (Object.entries(STAGE_LABELS) as [ApplicationStage, string][]).map(
   ([value, label]) => ({ value, label }),
@@ -93,10 +93,18 @@ export function MatchDrawer({ open, application, onClose, onStageChange }: Match
     if (!app) return;
     setDownloadLoading(true);
     try {
-      const { url } = await request(() => api.resumeUrl(app.id));
-      window.open(url, '_blank', 'noopener,noreferrer');
+      // 鉴权流式下载：后端转发文件内容（预签名 URL 会暴露 MinIO 内网主机名，浏览器不可达）
+      const { blob, filename } = await api.downloadResume(app.id);
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(objectUrl);
     } catch (err) {
-      message.error(errorMessage(err, '获取简历下载链接失败'));
+      message.error(errorMessage(err, '下载简历失败'));
     } finally {
       setDownloadLoading(false);
     }

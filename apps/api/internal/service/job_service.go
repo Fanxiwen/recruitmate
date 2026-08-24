@@ -3,7 +3,9 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -502,6 +504,8 @@ func (s *JobService) Stats(ctx context.Context, actor *Actor, jobID string) (*do
 }
 
 // ResumeURL 简历文件预签名下载地址（1 小时）。
+// 注意：预签名 URL 的主机取自 S3_ENDPOINT（容器内为 minio:9000），浏览器无法访问；
+// 前端下载请使用鉴权流式接口 ResumeFile（GET /internal/applications/:id/resume）。
 func (s *JobService) ResumeURL(ctx context.Context, actor *Actor, appID string) (string, error) {
 	if _, err := s.requireApplicationAccess(ctx, actor, appID); err != nil {
 		return "", err
@@ -515,6 +519,27 @@ func (s *JobService) ResumeURL(ctx context.Context, actor *Actor, appID string) 
 		return "", domain.WrapError(500, domain.CodeInternal, "生成下载链接失败", err)
 	}
 	return url, nil
+}
+
+// ResumeFile 读取简历文件内容（鉴权流式下载）：
+// 通过 API 自身转发文件，避免把 MinIO 内网地址暴露给浏览器，
+// 同时复用内部端的 JWT 鉴权与部门数据隔离。
+func (s *JobService) ResumeFile(ctx context.Context, actor *Actor, appID string) ([]byte, string, error) {
+	app, err := s.requireApplicationAccess(ctx, actor, appID)
+	if err != nil {
+		return nil, "", err
+	}
+	key, err := s.resumeFileKey(ctx, appID)
+	if err != nil {
+		return nil, "", err
+	}
+	data, err := s.Storage.Download(ctx, key)
+	if err != nil {
+		return nil, "", domain.WrapError(500, domain.CodeInternal, "读取简历文件失败", err)
+	}
+	ext := filepath.Ext(key)
+	filename := fmt.Sprintf("%s-简历%s", app.CandidateName, ext)
+	return data, filename, nil
 }
 
 // resumeFileKey 读取投递的简历文件 key。

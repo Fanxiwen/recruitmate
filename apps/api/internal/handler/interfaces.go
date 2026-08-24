@@ -56,4 +56,5 @@ type InternalJobService interface {
 	Batch(ctx context.Context, actor *service.Actor, ids []string, action, stage string) (int, error)
 	Stats(ctx context.Context, actor *service.Actor, jobID string) (*domain.JobStats, error)
 	ResumeURL(ctx context.Context, actor *service.Actor, appID string) (string, error)
+	ResumeFile(ctx context.Context, actor *service.Actor, appID string) ([]byte, string, error)
 }

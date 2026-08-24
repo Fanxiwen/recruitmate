@@ -1,9 +1,12 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
+	"net/url"
 
 	"github.com/Fanxiwen/recruitmate/apps/api/internal/domain"
+	"github.com/Fanxiwen/recruitmate/apps/api/internal/file"
 	"github.com/gin-gonic/gin"
 )
 
@@ -65,4 +68,18 @@ func (h *InternalApplicationHandler) ResumeURL(c *gin.Context) {
 		return
 	}
 	respondJSON(c, http.StatusOK, gin.H{"url": url})
+}
+
+// Resume GET /api/v1/internal/applications/:id/resume —— 鉴权流式下载简历原件。
+// 预签名 URL 会暴露 MinIO 内网主机名，浏览器不可达；此接口由 API 转发文件内容。
+func (h *InternalApplicationHandler) Resume(c *gin.Context) {
+	data, filename, err := h.Jobs.ResumeFile(c.Request.Context(), actorFromContext(c), c.Param("id"))
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	c.Header("Content-Type", file.ContentTypeFor(filename))
+	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename*=UTF-8''%s`, url.PathEscape(filename)))
+	c.Header("Cache-Control", "private, max-age=60")
+	c.Data(http.StatusOK, "application/octet-stream", data)
 }
